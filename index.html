@@ -46,6 +46,10 @@ h1 .lit { background: linear-gradient(180deg,#ffd390,var(--ember) 55%,var(--embe
 .row .pts { font-weight: 700; color: var(--ember); }
 .row.out { opacity: .38; }
 .row.out .name::after { content: " · eliminated"; font-weight: 400; font-size: 12px; color: var(--bone-dim); }
+.row.team-head { margin-top: 8px; border-bottom: 1px solid var(--card-edge); }
+.row.team-head .name { color: var(--ember); text-transform: uppercase; letter-spacing: .1em; font-size: 14px; }
+.row.member { padding-left: 16px; }
+.row .pts.dim { color: var(--bone-dim); font-weight: 600; }
 
 .vote-opts { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 button, select {
@@ -130,16 +134,32 @@ function render() {
     next.innerHTML = `<small>Up next</small>${esc(label)}`;
   } else next.style.display = "none";
 
-  // leaderboard
+  // leaderboard — grouped by team when teams are set
   const t = totals(state);
-  const players = [...state.players].sort((a, b) =>
-    (b.active !== false) - (a.active !== false) || t[b.name] - t[a.name] || a.name.localeCompare(b.name));
-  $("#board").innerHTML = players.length ? players.map((p, i) => `
-    <div class="row ${p.active === false ? "out" : ""}">
-      <span class="rank">${p.active === false ? "–" : i + 1}</span>
-      <span class="name">${esc(p.name)}</span>
-      <span class="pts">${t[p.name] || 0}</span>
-    </div>`).join("") : `<div class="empty">Waiting for the game to start…</div>`;
+  const hasTeams = state.players.some(p => p.team);
+  if (hasTeams) {
+    const groups = {};
+    state.players.forEach(p => (groups[p.team || "Free agents"] = groups[p.team || "Free agents"] || []).push(p));
+    const gTotal = g => g.reduce((s, p) => s + (t[p.name] || 0), 0);
+    $("#board").innerHTML = Object.entries(groups)
+      .sort((a, b) => gTotal(b[1]) - gTotal(a[1]))
+      .map(([team, members]) => `
+        <div class="row team-head"><span class="name">${esc(team)}</span><span class="pts">${gTotal(members)}</span></div>
+        ${members.sort((a, b) => (t[b.name] || 0) - (t[a.name] || 0)).map(p => `
+          <div class="row member ${p.active === false ? "out" : ""}">
+            <span class="name">${esc(p.name)}</span>
+            <span class="pts dim">${t[p.name] || 0}</span>
+          </div>`).join("")}`).join("");
+  } else {
+    const players = [...state.players].sort((a, b) =>
+      (b.active !== false) - (a.active !== false) || t[b.name] - t[a.name] || a.name.localeCompare(b.name));
+    $("#board").innerHTML = players.length ? players.map((p, i) => `
+      <div class="row ${p.active === false ? "out" : ""}">
+        <span class="rank">${p.active === false ? "–" : i + 1}</span>
+        <span class="name">${esc(p.name)}</span>
+        <span class="pts">${t[p.name] || 0}</span>
+      </div>`).join("") : `<div class="empty">Waiting for the game to start…</div>`;
+  }
 
   // feed
   const log = [...(state.log || [])].reverse();

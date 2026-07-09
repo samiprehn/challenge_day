@@ -197,9 +197,11 @@ function render() {
 /* ---------- board ---------- */
 function board() {
   const t = totals();
-  const rows = [...state.players].sort((a, b) => t[b.name] - t[a.name]).map(p => `
+  const hasTeams = state.players.some(p => p.team);
+  const rows = [...state.players].sort((a, b) =>
+    (a.team || "￿").localeCompare(b.team || "￿") || t[b.name] - t[a.name]).map(p => `
     <div class="row ${p.active === false ? "out" : ""}">
-      <span class="name">${esc(p.name)}</span>
+      <span class="name">${esc(p.name)}${p.team ? ` <span class="sched-note">· ${esc(p.team)}</span>` : ""}</span>
       <span class="pts">${t[p.name] || 0}</span>
       <button class="small" onclick="toggleOut('${esc(p.name)}')">${p.active === false ? "revive" : "eliminate"}</button>
       <button class="small danger" onclick="removePlayer('${esc(p.name)}')">✕</button>
@@ -207,6 +209,7 @@ function board() {
   $("#tabBody").innerHTML = `
     <div class="card"><h2>Players</h2>
       ${rows || `<div class="sched-note">No players yet.</div>`}
+      ${hasTeams ? `<button class="small danger" style="margin-top:10px" onclick="clearTeams()">Clear teams</button>` : ""}
       <div class="inline" style="margin-top:12px">
         <input id="newPlayer" placeholder="Add player">
         <button class="primary" onclick="addPlayer()">Add</button>
@@ -369,23 +372,27 @@ function draw() {
     $("#teamsN").style.display = document.querySelector('input[name="dmode"]:checked').value === "teams" ? "" : "none");
 }
 const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+let lastDraw = null; // {mode, groups} for pairs/teams so they can be saved to the board
 function runDraw() {
   const mode = document.querySelector('input[name="dmode"]:checked').value;
   const pool = shuffle(active().map(p => p.name));
   if (pool.length < 2) return alert("Add at least 2 active players first.");
   let result, headline;
+  lastDraw = null;
   if (mode === "pairs") {
     headline = "The pairs are…";
-    const pairs = [];
-    for (let i = 0; i + 1 < pool.length; i += 2) pairs.push(pool[i] + " & " + pool[i + 1]);
-    if (pool.length % 2) pairs[pairs.length - 1] += " & " + pool[pool.length - 1];
-    result = pairs.join("<br>");
+    const groups = [];
+    for (let i = 0; i + 1 < pool.length; i += 2) groups.push([pool[i], pool[i + 1]]);
+    if (pool.length % 2) groups[groups.length - 1].push(pool[pool.length - 1]);
+    lastDraw = { mode, groups };
+    result = groups.map(g => g.join(" & ")).join("<br>");
   } else if (mode === "teams") {
     headline = "The teams are…";
     const n = Math.max(2, +$("#nTeams").value || 2);
-    const teams = Array.from({ length: n }, () => []);
-    pool.forEach((p, i) => teams[i % n].push(p));
-    result = teams.map((t, i) => `<span style="color:var(--ember)">Team ${i + 1}:</span> ${t.join(", ")}`).join("<br>");
+    const groups = Array.from({ length: n }, () => []);
+    pool.forEach((p, i) => groups[i % n].push(p));
+    lastDraw = { mode, groups };
+    result = groups.map((t, i) => `<span style="color:var(--ember)">Team ${i + 1}:</span> ${t.join(", ")}`).join("<br>");
   } else if (mode === "one") {
     headline = "The draw picks…";
     result = pool[0];
@@ -394,7 +401,9 @@ function runDraw() {
     result = `${pool[0]}<span class="vs">vs</span>${pool[1]}`;
   }
   bigShow(`<div class="headline">${headline}</div><div class="main" id="bigMain"></div>
-    <div class="controls"><button onclick="runDraw()">Draw again</button><button class="primary" onclick="bigHide()">Done</button></div>`);
+    <div class="controls"><button onclick="runDraw()">Draw again</button>
+      ${lastDraw ? `<button onclick="saveTeams()">Set as current teams</button>` : ""}
+      <button class="primary" onclick="bigHide()">Done</button></div>`);
   // suspense: cycle names, then land
   const el = $("#bigMain");
   let ticks = 0;
@@ -403,6 +412,20 @@ function runDraw() {
     if (++ticks > 14) { clearInterval(spin); el.innerHTML = result; }
   }, 120);
 }
+function saveTeams() {
+  if (!lastDraw) return;
+  state.players.forEach(p => delete p.team);
+  lastDraw.groups.forEach((members, i) => {
+    const label = lastDraw.mode === "teams"
+      ? `Team ${i + 1}`
+      : members.map(n => n.split(" ")[0]).join(" & ");
+    members.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.team = label; });
+  });
+  push();
+  bigHide();
+  $("#tabs [data-t=board]").click();
+}
+function clearTeams() { state.players.forEach(p => delete p.team); push(); }
 function bigShow(html) { const b = $("#big"); b.innerHTML = `<button class="close" onclick="bigHide()">✕</button>` + html; b.classList.add("show"); }
 function bigHide() { $("#big").classList.remove("show"); clearInterval(tInt); render(); }
 
