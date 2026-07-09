@@ -102,8 +102,8 @@ button.small { font-size: 13px; padding: 5px 10px; }
   <div id="app" style="display:none">
     <div class="tabs" id="tabs">
       <button data-t="board" class="on">Board</button>
-      <button data-t="run">Run</button>
       <button data-t="sched">Schedule</button>
+      <button data-t="run">Challenge</button>
       <button data-t="draw">The Draw</button>
       <button data-t="vote">Vote</button>
       <button data-t="timer">Timer</button>
@@ -260,12 +260,19 @@ function removePlayer(n) {
 }
 
 /* ---------- run a challenge ---------- */
-let runSchedId = null;
+let runSchedId = null, editLogId = null;
 function run() {
   const names = active().sort((a, b) => (a.team || "￿").localeCompare(b.team || "￿")).map(p => p.name);
   const upcoming = state.schedule.filter(s => !s.done);
+  const editing = state.log.find(l => l.id === editLogId);
+  const past = [...state.log].reverse().map(l => `
+    <div class="row">
+      <span class="name">${esc(l.name)} <span class="sched-note">· ${esc(l.type)} · ${esc(l.summary || "")}</span></span>
+      <button class="small" onclick="editLog('${esc(l.id)}')">✎ edit</button>
+      <button class="small danger" onclick="deleteLog('${esc(l.id)}')">✕</button>
+    </div>`).join("");
   $("#tabBody").innerHTML = `
-    <div class="card"><h2>Record a challenge</h2>
+    <div class="card"><h2>${editing ? `Editing: ${esc(editing.name)}` : "Record a challenge"}</h2>
       ${upcoming.length ? `<label>From the schedule</label>
       <select id="chSched">
         <option value="">— pick a planned challenge —</option>
@@ -285,8 +292,12 @@ function run() {
       ${teamButtons("win")}
       ${checklist("win", names)}
       <div id="elimExtra"></div>
-      <button class="primary" style="width:100%; margin-top:14px" onclick="saveRun()">Save result</button>
+      <button class="primary" style="width:100%; margin-top:14px" onclick="saveRun()">${editing ? "Update result" : "Save result"}</button>
+      ${editing ? `<button style="width:100%; margin-top:8px" onclick="editLogId=null; run()">Cancel edit</button>` : ""}
       <div id="runMsg" style="margin-top:8px"></div>
+    </div>
+    <div class="card"><h2>Past results</h2>
+      ${past || `<div class="sched-note">Nothing recorded yet.</div>`}
     </div>`;
   $("#chType").onchange = renderElimExtra;
   runSchedId = null;
@@ -300,7 +311,23 @@ function run() {
       renderElimExtra();
     }
   };
+  if (editing) {
+    $("#chName").value = editing.name;
+    $("#chType").value = editing.type;
+    $("#chFmt").value = editing.format || "Individual";
+    const ptsVals = Object.values(editing.points || {});
+    if (ptsVals.length) $("#chPts").value = ptsVals[0];
+    document.querySelectorAll('input[data-cl="win"]').forEach(b =>
+      b.checked = editing.points && editing.points[b.value] != null);
+  }
   renderElimExtra();
+}
+function editLog(id) { editLogId = id; run(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+function deleteLog(id) {
+  const l = state.log.find(l => l.id === id);
+  if (!confirm(`Delete "${l.name}"? Its points come off the board.`)) return;
+  state.log = state.log.filter(l => l.id !== id);
+  push();
 }
 function renderElimExtra() {
   const isElim = $("#chType").value === "elimination";
@@ -322,6 +349,14 @@ function saveRun() {
     m.length === winners.length && m.every(n => winners.includes(n)));
   let summary = `Won by ${teamMatch ? teamMatch[0] : winners.join(" & ")} (+${pts} each)`;
   if (losers.length) summary += ` — ${losers.join(" & ")} eliminated`;
+  const editing = state.log.find(l => l.id === editLogId);
+  if (editing) {
+    Object.assign(editing, { name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
+    editLogId = null;
+    push();
+    run();
+    return;
+  }
   state.log.push({ id: uid(), ts: Date.now(), name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
   if (state.settings.eliminationMode)
     losers.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.active = false; });
