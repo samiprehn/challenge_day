@@ -220,8 +220,7 @@ function board() {
     <div class="row ${p.active === false ? "out" : ""}">
       <span class="name">${esc(p.name)}${p.coins ? ` 🪙${p.coins > 1 ? "×" + p.coins : ""}` : ""}${p.team ? ` <span class="sched-note">· ${esc(p.team)}</span>` : ""}</span>
       <span class="pts">${t[p.name] || 0}</span>
-      ${state.settings.coinMode ? `<button class="small" onclick="coinAdj('${esc(p.name)}',1)">🪙+</button>
-      <button class="small" onclick="coinAdj('${esc(p.name)}',-1)">🪙−</button>` : ""}
+      ${state.settings.coinMode ? `<button class="small" onclick="coinEdit('${esc(p.name)}')">🪙 edit</button>` : ""}
       <button class="small" onclick="toggleOut('${esc(p.name)}')">${p.active === false ? "revive" : "eliminate"}</button>
       <button class="small danger" onclick="removePlayer('${esc(p.name)}')">✕</button>
     </div>`).join("");
@@ -256,9 +255,13 @@ function addPlayer() {
   state.players.push({ name: n, active: true });
   push();
 }
-function coinAdj(n, d) {
+function coinEdit(n) {
   const p = state.players.find(p => p.name === n);
-  p.coins = Math.max(0, (p.coins || 0) + d);
+  const v = prompt(`Coins for ${n}:`, p.coins || 0);
+  if (v === null) return;
+  const coins = parseInt(v, 10);
+  if (isNaN(coins) || coins < 0) return alert("Enter a number, 0 or more.");
+  p.coins = coins;
   push();
 }
 function toggleOut(n) {
