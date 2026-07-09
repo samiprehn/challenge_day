@@ -442,7 +442,11 @@ function moveSched(i, d) {
   [state.schedule[i], state.schedule[j]] = [state.schedule[j], state.schedule[i]];
   push();
 }
-function delSched(i) { state.schedule.splice(i, 1); push(); }
+function delSched(i) {
+  if (!confirm(`Remove "${state.schedule[i].name}" from the schedule?`)) return;
+  state.schedule.splice(i, 1);
+  push();
+}
 
 /* ---------- the draw ---------- */
 function draw() {
