@@ -311,6 +311,16 @@ function run() {
       renderElimExtra();
     }
   };
+  if (pendingSchedId) {
+    const s = state.schedule.find(x => x.id === pendingSchedId && !x.done);
+    pendingSchedId = null;
+    if (s) {
+      runSchedId = s.id;
+      if (sel) sel.value = s.id;
+      $("#chName").value = s.name;
+      $("#chType").value = s.type;
+    }
+  }
   if (editing) {
     $("#chName").value = editing.name;
     $("#chType").value = editing.type;
@@ -378,7 +388,9 @@ function sched() {
       </span>
       <button class="small" onclick="moveSched(${i},-1)">↑</button>
       <button class="small" onclick="moveSched(${i},1)">↓</button>
-      <button class="small" onclick="toggleSched(${i})">${s.done ? "undo" : "done"}</button>
+      ${s.done
+        ? `<button class="small" onclick="toggleSched(${i})">undo</button>`
+        : `<button class="small" onclick="doSched('${esc(s.id)}')">do ▶</button>`}
       <button class="small danger" onclick="delSched(${i})">✕</button>
     </div>`).join("");
   $("#tabBody").innerHTML = `
@@ -406,6 +418,8 @@ function moveSched(i, d) {
   push();
 }
 function toggleSched(i) { state.schedule[i].done = !state.schedule[i].done; push(); }
+let pendingSchedId = null;
+function doSched(id) { pendingSchedId = id; $("#tabs [data-t=run]").click(); }
 function delSched(i) { state.schedule.splice(i, 1); push(); }
 
 /* ---------- the draw ---------- */
