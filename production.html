@@ -382,10 +382,8 @@ function saveRun() {
     run();
     return;
   }
-  if (state.settings.coinMode && $("#chType").value === "elimination") {
+  if (state.settings.coinMode && $("#chType").value === "elimination")
     winners.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.coins = (p.coins || 0) + 1; });
-    summary += " 🪙";
-  }
   state.log.push({ id: uid(), ts: Date.now(), name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
   if (state.settings.eliminationMode)
     losers.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.active = false; });
