@@ -218,8 +218,10 @@ function board() {
   const rows = [...state.players].sort((a, b) =>
     (a.team || "￿").localeCompare(b.team || "￿") || t[b.name] - t[a.name]).map(p => `
     <div class="row ${p.active === false ? "out" : ""}">
-      <span class="name">${esc(p.name)}${p.team ? ` <span class="sched-note">· ${esc(p.team)}</span>` : ""}</span>
+      <span class="name">${esc(p.name)}${p.coins ? ` 🪙${p.coins > 1 ? "×" + p.coins : ""}` : ""}${p.team ? ` <span class="sched-note">· ${esc(p.team)}</span>` : ""}</span>
       <span class="pts">${t[p.name] || 0}</span>
+      ${state.settings.coinMode ? `<button class="small" onclick="coinAdj('${esc(p.name)}',1)">🪙+</button>
+      <button class="small" onclick="coinAdj('${esc(p.name)}',-1)">🪙−</button>` : ""}
       <button class="small" onclick="toggleOut('${esc(p.name)}')">${p.active === false ? "revive" : "eliminate"}</button>
       <button class="small danger" onclick="removePlayer('${esc(p.name)}')">✕</button>
     </div>`).join("");
@@ -238,14 +240,25 @@ function board() {
         Real eliminations (losers are out of the game)
       </label></div>
       <div class="hint">Off = eliminations are just worth points; nobody sits out.</div>
+      <div class="checks" style="margin-top:8px"><label>
+        <input type="checkbox" id="coinMode" ${state.settings.coinMode ? "checked" : ""}>
+        🪙 Elimination coins (win an elimination → earn a coin; a coin is required for the final)
+      </label></div>
+      <div class="hint">Coins are awarded automatically when you record an elimination win. Adjust manually with the 🪙 buttons above for steals, trades, or fixes.</div>
     </div>`;
   $("#elimMode").onchange = e => { state.settings.eliminationMode = e.target.checked; push(); };
+  $("#coinMode").onchange = e => { state.settings.coinMode = e.target.checked; push(); };
   $("#newPlayer").addEventListener("keydown", e => { if (e.key === "Enter") addPlayer(); });
 }
 function addPlayer() {
   const n = $("#newPlayer").value.trim();
   if (!n || state.players.some(p => p.name === n)) return;
   state.players.push({ name: n, active: true });
+  push();
+}
+function coinAdj(n, d) {
+  const p = state.players.find(p => p.name === n);
+  p.coins = Math.max(0, (p.coins || 0) + d);
   push();
 }
 function toggleOut(n) {
@@ -340,11 +353,20 @@ function deleteLog(id) {
   push();
 }
 function renderElimExtra() {
-  const isElim = $("#chType").value === "elimination";
-  $("#elimExtra").innerHTML = isElim ? `
-    <label>Eliminated / loser ${state.settings.eliminationMode ? "(will be marked out)" : "(for the story — stays in)"}</label>
-    ${teamButtons("lose")}
-    ${checklist("lose", active().sort((a, b) => (a.team || "￿").localeCompare(b.team || "￿")).map(p => p.name))}` : "";
+  const type = $("#chType").value;
+  if (type === "elimination") {
+    $("#elimExtra").innerHTML = `
+      ${state.settings.coinMode ? `<div class="hint" style="margin-top:8px">🪙 Coin mode: the winner(s) earn a coin automatically.</div>` : ""}
+      <label>Eliminated / loser ${state.settings.eliminationMode ? "(will be marked out)" : "(for the story — stays in)"}</label>
+      ${teamButtons("lose")}
+      ${checklist("lose", active().sort((a, b) => (a.team || "￿").localeCompare(b.team || "￿")).map(p => p.name))}`;
+  } else if (type === "final" && state.settings.coinMode) {
+    const eligible = active().filter(p => p.coins > 0).map(p => p.name);
+    $("#elimExtra").innerHTML = `<div class="hint" style="margin-top:8px">
+      🪙 Final-eligible (has a coin): ${eligible.length ? esc(eligible.join(", ")) : "nobody yet!"}</div>`;
+  } else {
+    $("#elimExtra").innerHTML = "";
+  }
 }
 function saveRun() {
   const name = $("#chName").value.trim();
@@ -367,6 +389,10 @@ function saveRun() {
     run();
     return;
   }
+  if (state.settings.coinMode && $("#chType").value === "elimination") {
+    winners.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.coins = (p.coins || 0) + 1; });
+    summary += " 🪙";
+  }
   state.log.push({ id: uid(), ts: Date.now(), name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
   if (state.settings.eliminationMode)
     losers.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.active = false; });
@@ -381,6 +407,12 @@ function saveRun() {
 
 /* ---------- schedule ---------- */
 function sched() {
+  // every Challenge ends with a final — keep one on the books
+  if (!state.schedule.some(s => s.type === "final")) {
+    state.schedule.push({ id: uid(), name: "Final Challenge", type: "final", note: "", done: false });
+    push();
+    return; // push() re-renders
+  }
   const items = state.schedule.map((s, i) => `
     <div class="row">
       <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}">
@@ -408,7 +440,13 @@ function sched() {
 function addSched() {
   const name = $("#sName").value.trim();
   if (!name) return;
-  state.schedule.push({ id: uid(), name, type: $("#sType").value, note: $("#sNote").value.trim(), done: false });
+  const item = { id: uid(), name, type: $("#sType").value, note: $("#sNote").value.trim(), done: false };
+  // keep the final at the end
+  const last = state.schedule[state.schedule.length - 1];
+  if (item.type !== "final" && last && last.type === "final" && !last.done)
+    state.schedule.splice(state.schedule.length - 1, 0, item);
+  else
+    state.schedule.push(item);
   push();
 }
 function moveSched(i, d) {
