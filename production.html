@@ -422,6 +422,8 @@ function draw() {
       <div class="inline" style="margin-top:10px">
         <div id="teamsN" style="display:none"><label>How many teams</label><input id="nTeams" type="number" value="2" min="2"></div>
       </div>
+      <label>Exempt from the draw (safe / sitting out)</label>
+      ${checklist("exempt", active().map(p => p.name))}
       <button class="primary" style="width:100%; margin-top:12px" onclick="runDraw()">🔥 Draw</button>
     </div>`;
   document.querySelectorAll('input[name="dmode"]').forEach(r => r.onchange = () =>
@@ -431,8 +433,9 @@ const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { cons
 let lastDraw = null; // {mode, groups} for pairs/teams so they can be saved to the board
 function runDraw() {
   const mode = document.querySelector('input[name="dmode"]:checked').value;
-  const pool = shuffle(active().map(p => p.name));
-  if (pool.length < 2) return alert("Add at least 2 active players first.");
+  const exempt = checked("exempt");
+  const pool = shuffle(active().map(p => p.name).filter(n => !exempt.includes(n)));
+  if (pool.length < 2) return alert("Need at least 2 non-exempt active players.");
   let result, headline;
   lastDraw = null;
   if (mode === "pairs") {
