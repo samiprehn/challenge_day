@@ -180,6 +180,23 @@ function totals() {
 const checklist = (id, names) => `<div class="checks">${names.map(n =>
   `<label><input type="checkbox" data-cl="${id}" value="${esc(n)}">${esc(n)}</label>`).join("")}</div>`;
 const checked = id => [...document.querySelectorAll(`input[data-cl="${id}"]:checked`)].map(i => i.value);
+const teams = () => {
+  const g = {};
+  active().forEach(p => { if (p.team) (g[p.team] = g[p.team] || []).push(p.name); });
+  return g;
+};
+// one-tap team buttons that check/uncheck a whole team in a checklist
+const teamButtons = id => {
+  const g = teams();
+  return Object.keys(g).length ? `<div class="checks" style="margin-bottom:4px">${Object.keys(g).map(t =>
+    `<button class="small" onclick="toggleTeam('${esc(id)}','${esc(t)}')">⚑ ${esc(t)}</button>`).join("")}</div>` : "";
+};
+function toggleTeam(id, team) {
+  const members = teams()[team] || [];
+  const boxes = [...document.querySelectorAll(`input[data-cl="${id}"]`)].filter(b => members.includes(b.value));
+  const allOn = boxes.every(b => b.checked);
+  boxes.forEach(b => b.checked = !allOn);
+}
 
 /* ---------- tabs ---------- */
 $("#tabs").addEventListener("click", e => {
@@ -245,7 +262,7 @@ function removePlayer(n) {
 /* ---------- run a challenge ---------- */
 let runSchedId = null;
 function run() {
-  const names = active().map(p => p.name);
+  const names = active().sort((a, b) => (a.team || "￿").localeCompare(b.team || "￿")).map(p => p.name);
   const upcoming = state.schedule.filter(s => !s.done);
   $("#tabBody").innerHTML = `
     <div class="card"><h2>Record a challenge</h2>
@@ -264,7 +281,8 @@ function run() {
           <select id="chFmt"><option>Individual</option><option>Pairs</option><option>Teams</option></select></div>
         <div><label>Points each</label><input id="chPts" type="number" value="10"></div>
       </div>
-      <label>Winner(s)</label>
+      <label>Winner(s) — tap a team flag to select the whole team</label>
+      ${teamButtons("win")}
       ${checklist("win", names)}
       <div id="elimExtra"></div>
       <button class="primary" style="width:100%; margin-top:14px" onclick="saveRun()">Save result</button>
@@ -288,7 +306,8 @@ function renderElimExtra() {
   const isElim = $("#chType").value === "elimination";
   $("#elimExtra").innerHTML = isElim ? `
     <label>Eliminated / loser ${state.settings.eliminationMode ? "(will be marked out)" : "(for the story — stays in)"}</label>
-    ${checklist("lose", active().map(p => p.name))}` : "";
+    ${teamButtons("lose")}
+    ${checklist("lose", active().sort((a, b) => (a.team || "￿").localeCompare(b.team || "￿")).map(p => p.name))}` : "";
 }
 function saveRun() {
   const name = $("#chName").value.trim();
@@ -299,7 +318,9 @@ function saveRun() {
   const losers = checked("lose");
   const points = {};
   winners.forEach(w => points[w] = pts);
-  let summary = `Won by ${winners.join(" & ")} (+${pts} each)`;
+  const teamMatch = Object.entries(teams()).find(([, m]) =>
+    m.length === winners.length && m.every(n => winners.includes(n)));
+  let summary = `Won by ${teamMatch ? teamMatch[0] : winners.join(" & ")} (+${pts} each)`;
   if (losers.length) summary += ` — ${losers.join(" & ")} eliminated`;
   state.log.push({ id: uid(), ts: Date.now(), name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
   if (state.settings.eliminationMode)
