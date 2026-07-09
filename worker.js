@@ -34,7 +34,11 @@ export default {
     const isProd = req.headers.get("X-Token") === env.TOKEN;
     const state = JSON.parse((await env.STATE.get("event")) || "null") || defaultState();
 
-    if (url.pathname === "/state") return json(isProd ? state : publicView(state));
+    if (url.pathname === "/state") {
+      // a wrong token gets an error, not a silent downgrade to the public view
+      if (req.headers.get("X-Token") && !isProd) return json({ error: "bad token" }, 403);
+      return json(isProd ? state : publicView(state));
+    }
 
     if (req.method === "POST" && url.pathname === "/update") {
       if (!isProd) return json({ error: "bad token" }, 403);
