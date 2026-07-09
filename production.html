@@ -299,7 +299,7 @@ function run() {
           <select id="chType"><option value="daily">Daily</option><option value="elimination">Elimination</option><option value="final">Final</option></select></div>
         <div><label>Format</label>
           <select id="chFmt"><option>Individual</option><option>Pairs</option><option>Teams</option></select></div>
-        <div><label>Points each</label><input id="chPts" type="number" value="10"></div>
+        <div><label>Points each</label><input id="chPts" type="number" value="1"></div>
       </div>
       <label>Winner(s) — tap a team flag to select the whole team</label>
       ${teamButtons("win")}
@@ -312,7 +312,10 @@ function run() {
     <div class="card"><h2>Past results</h2>
       ${past || `<div class="sched-note">Nothing recorded yet.</div>`}
     </div>`;
-  $("#chType").onchange = renderElimExtra;
+  $("#chType").onchange = () => {
+    $("#chPts").value = { daily: 1, elimination: 0, final: 1 }[$("#chType").value];
+    renderElimExtra();
+  };
   runSchedId = null;
   const sel = $("#chSched");
   if (sel) sel.onchange = () => {
@@ -321,6 +324,7 @@ function run() {
     if (s) {
       $("#chName").value = s.name;
       $("#chType").value = s.type;
+      $("#chPts").value = { daily: 1, elimination: 0, final: 1 }[s.type];
       renderElimExtra();
     }
   };
@@ -332,6 +336,7 @@ function run() {
       if (sel) sel.value = s.id;
       $("#chName").value = s.name;
       $("#chType").value = s.type;
+      $("#chPts").value = { daily: 1, elimination: 0, final: 1 }[s.type];
     }
   }
   if (editing) {
