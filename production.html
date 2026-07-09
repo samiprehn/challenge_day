@@ -240,10 +240,17 @@ function removePlayer(n) {
 }
 
 /* ---------- run a challenge ---------- */
+let runSchedId = null;
 function run() {
   const names = active().map(p => p.name);
+  const upcoming = state.schedule.filter(s => !s.done);
   $("#tabBody").innerHTML = `
     <div class="card"><h2>Record a challenge</h2>
+      ${upcoming.length ? `<label>From the schedule</label>
+      <select id="chSched">
+        <option value="">— pick a planned challenge —</option>
+        ${upcoming.map(s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.type)})</option>`).join("")}
+      </select>` : ""}
       <label>Challenge name</label>
       <input id="chName" placeholder="e.g. Pole Wrestle">
       <div class="hint">Need ideas? <a href="${ARCHIVE}" target="_blank" rel="noopener">Browse the archive</a> and hit the “local” chip.</div>
@@ -261,6 +268,17 @@ function run() {
       <div id="runMsg" style="margin-top:8px"></div>
     </div>`;
   $("#chType").onchange = renderElimExtra;
+  runSchedId = null;
+  const sel = $("#chSched");
+  if (sel) sel.onchange = () => {
+    const s = state.schedule.find(x => x.id === sel.value);
+    runSchedId = s ? s.id : null;
+    if (s) {
+      $("#chName").value = s.name;
+      $("#chType").value = s.type;
+      renderElimExtra();
+    }
+  };
   renderElimExtra();
 }
 function renderElimExtra() {
@@ -283,8 +301,10 @@ function saveRun() {
   state.log.push({ id: uid(), ts: Date.now(), name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
   if (state.settings.eliminationMode)
     losers.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.active = false; });
-  // tick off the first matching un-done schedule item of that type
-  const s = state.schedule.find(x => !x.done && x.type === $("#chType").value);
+  // tick off the schedule item this came from, else the first un-done one of the same type
+  const s = state.schedule.find(x => x.id === runSchedId)
+    || state.schedule.find(x => !x.done && x.type === $("#chType").value && x.name === name)
+    || state.schedule.find(x => !x.done && x.type === $("#chType").value);
   if (s) s.done = true;
   push();
   $("#tabs [data-t=board]").click();
