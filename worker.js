@@ -20,6 +20,8 @@ function publicView(state) {
     settings: state.settings,
     log: state.log,
     nextType: next ? next.type : null,
+    timer: state.timer || null,
+    claimed: Object.keys(state.claims || {}),
     poll: state.poll && state.poll.open
       ? { id: state.poll.id, question: state.poll.question, options: state.poll.options,
           voted: Object.keys(state.poll.votes || {}) }
@@ -52,10 +54,17 @@ export default {
     }
 
     if (req.method === "POST" && url.pathname === "/vote") {
-      const { voter, choice } = await req.json();
+      const { voter, choice, device } = await req.json();
       if (!state.poll || !state.poll.open) return json({ error: "voting is closed" }, 400);
       if (!state.players.some(p => p.name === voter)) return json({ error: "unknown player" }, 400);
       if (!state.poll.options.includes(choice)) return json({ error: "invalid choice" }, 400);
+      // first phone to vote as a name claims it
+      state.claims = state.claims || {};
+      if (device) {
+        if (state.claims[voter] && state.claims[voter] !== device)
+          return json({ error: "that name is already claimed on another phone — ask production to release it" }, 403);
+        state.claims[voter] = device;
+      }
       state.poll.votes = state.poll.votes || {};
       state.poll.votes[voter] = choice;
       await env.STATE.put("event", JSON.stringify(state));

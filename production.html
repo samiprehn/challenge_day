@@ -84,6 +84,18 @@ button.small { font-size: 13px; padding: 5px 10px; }
 .big .timer-digits.warn { color: var(--red); }
 .big .controls { display: flex; gap: 10px; margin-top: 22px; }
 #gate { max-width: 420px; margin: 60px auto; }
+.confetti {
+  position: absolute; top: -40px; font-size: 26px; pointer-events: none;
+  animation: fall 3.2s linear infinite;
+}
+@keyframes fall {
+  to { transform: translateY(110vh) rotate(360deg); }
+}
+.horn {
+  position: fixed; right: 14px; bottom: 14px; z-index: 60;
+  width: 52px; height: 52px; border-radius: 50%; font-size: 24px;
+  background: var(--ember-deep); border-color: var(--ember-deep);
+}
 </style>
 </head>
 <body>
@@ -117,6 +129,7 @@ button.small { font-size: 13px; padding: 5px 10px; }
 </div>
 
 <div class="big" id="big"></div>
+<button class="horn" onclick="airhorn()" title="Air horn">📣</button>
 
 <script>
 const WORKER = "https://challenge-day.sami-prehn.workers.dev";
@@ -221,6 +234,7 @@ function board() {
       <span class="name">${esc(p.name)}${p.coins ? ` 🪙${p.coins > 1 ? "×" + p.coins : ""}` : ""}${p.team ? ` <span class="sched-note">· ${esc(p.team)}</span>` : ""}</span>
       <span class="pts">${t[p.name] || 0}</span>
       ${state.settings.coinMode ? `<button class="small" onclick="coinEdit('${esc(p.name)}')">🪙 edit</button>` : ""}
+      ${state.claims && state.claims[p.name] ? `<button class="small" onclick="releaseName('${esc(p.name)}')" title="unlink from their phone">release</button>` : ""}
       <button class="small" onclick="toggleOut('${esc(p.name)}')">${p.active === false ? "revive" : "eliminate"}</button>
       <button class="small danger" onclick="removePlayer('${esc(p.name)}')">✕</button>
     </div>`).join("");
@@ -244,6 +258,13 @@ function board() {
         🪙 Elimination coins (win an elimination → earn a coin; a coin is required for the final)
       </label></div>
       <div class="hint">Coins are awarded automatically when you record an elimination win. Adjust manually with the 🪙 buttons above for steals, trades, or fixes.</div>
+    </div>
+    <div class="card"><h2>Event</h2>
+      <div class="inline">
+        <button onclick="newEvent(true)">New event — keep players</button>
+        <button class="danger" onclick="newEvent(false)">New event — start fresh</button>
+      </div>
+      <div class="hint">Archives this event's results and clears the board${(state.past || []).length ? ` · ${(state.past).length} past event${state.past.length === 1 ? "" : "s"} archived` : ""}.</div>
     </div>`;
   $("#elimMode").onchange = e => { state.settings.eliminationMode = e.target.checked; push(); };
   $("#coinMode").onchange = e => { state.settings.coinMode = e.target.checked; push(); };
@@ -262,6 +283,28 @@ function coinEdit(n) {
   const coins = parseInt(v, 10);
   if (isNaN(coins) || coins < 0) return alert("Enter a number, 0 or more.");
   p.coins = coins;
+  push();
+}
+function releaseName(n) {
+  delete state.claims[n];
+  push();
+}
+function newEvent(keepPlayers) {
+  if (!confirm(keepPlayers
+    ? "Start a new event? Results, schedule, coins, and teams are archived and cleared; players stay."
+    : "Start a completely fresh event? Players, results, and schedule are archived and cleared.")) return;
+  if (!confirm("Really sure? The board resets for everyone.")) return;
+  (state.past = state.past || []).push({
+    ts: Date.now(), players: state.players, log: state.log, schedule: state.schedule,
+  });
+  state.players = keepPlayers
+    ? state.players.map(p => ({ name: p.name, active: true }))
+    : [];
+  state.log = [];
+  state.schedule = [];
+  state.poll = null;
+  state.claims = {};
+  delete state.timer;
   push();
 }
 function toggleOut(n) {
@@ -296,6 +339,7 @@ function run() {
       </select>` : ""}
       <label>Challenge name</label>
       <input id="chName" placeholder="e.g. Pole Wrestle">
+      <div class="hint" id="schedRules" style="display:none"></div>
       <div class="inline">
         <div><label>Type</label>
           <select id="chType"><option value="daily">Daily</option><option value="elimination">Elimination</option><option value="final">Final</option></select></div>
@@ -325,6 +369,9 @@ function run() {
       $("#chType").value = s.type;
       renderElimExtra();
     }
+    const r = $("#schedRules");
+    r.textContent = s && s.rules ? "📜 " + s.rules : "";
+    r.style.display = s && s.rules ? "" : "none";
   };
   if (editing) {
     $("#chName").value = editing.name;
@@ -392,7 +439,19 @@ function saveRun() {
     || state.schedule.find(x => !x.done && x.type === $("#chType").value);
   if (s) s.done = true;
   push();
+  if ($("#chType").value === "final") return celebrate(winners);
   $("#tabs [data-t=board]").click();
+}
+function celebrate(winners) {
+  const t = totals();
+  const standings = [...state.players].sort((a, b) => (t[b.name] || 0) - (t[a.name] || 0))
+    .slice(0, 5).map((p, i) => `${["🥇", "🥈", "🥉", "4.", "5."][i]} ${esc(p.name)} — ${t[p.name] || 0}`).join("<br>");
+  bigShow(`
+    ${Array.from({ length: 24 }, (_, i) => `<span class="confetti" style="left:${(i * 41) % 100}%; animation-delay:${(i % 8) * 0.35}s">${"🎉🔥🏆✨"[i % 4]}</span>`).join("")}
+    <div class="headline">Your champion${winners.length > 1 ? "s" : ""}</div>
+    <div class="main">🏆 ${winners.map(esc).join(" & ")}</div>
+    <div class="sub2" style="font-size:20px; line-height:1.6; margin-top:20px">${standings}</div>
+    <div class="controls"><button class="primary" onclick="bigHide()">Done</button></div>`);
 }
 
 /* ---------- schedule ---------- */
@@ -408,10 +467,13 @@ function sched() {
       <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}">
         ${esc(s.name || "(unnamed)")} <span class="sched-note">· ${esc(s.type)}${s.note ? " · " + esc(s.note) : ""}</span>
       </span>
+      ${s.rules ? `<button class="small" onclick="toggleRules(${i})">rules ▸</button>` : ""}
       <button class="small" onclick="moveSched(${i},-1)">↑</button>
       <button class="small" onclick="moveSched(${i},1)">↓</button>
       <button class="small danger" onclick="delSched(${i})">✕</button>
-    </div>`).join("");
+    </div>
+    ${s.rules ? `<div class="hint" id="rules-${i}" style="display:none; padding:4px 2px 10px">${esc(s.rules)}</div>` : ""}`).join("");
+  const packing = state.schedule.filter(s => !s.done && s.note && s.note !== "from the archive");
   $("#tabBody").innerHTML = `
     <div class="card"><h2>Run of show</h2>
       <div class="hint" style="margin-bottom:8px">Participants only ever see the type of the next un-done item — never the name.
@@ -423,7 +485,17 @@ function sched() {
         <button class="primary" onclick="addSched()">Add</button>
       </div>
       <input id="sNote" placeholder="Setup notes (gear, location…)" style="margin-top:8px">
-    </div>`;
+    </div>
+    ${packing.length ? `<div class="card"><h2>Packing list</h2>
+      <div class="hint" style="margin-bottom:6px">Setup notes from every upcoming challenge — checkboxes are just for you, not saved.</div>
+      <div class="checks" style="flex-direction:column; align-items:stretch">
+        ${packing.map(s => `<label><input type="checkbox">${esc(s.name)} — ${esc(s.note)}</label>`).join("")}
+      </div>
+    </div>` : ""}`;
+}
+function toggleRules(i) {
+  const el = $(`#rules-${i}`);
+  el.style.display = el.style.display === "none" ? "" : "none";
 }
 function addSched() {
   const name = $("#sName").value.trim();
@@ -589,6 +661,26 @@ function timer() {
       </div>
     </div>`;
 }
+function airhorn() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const g = ctx.createGain();
+    g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.5, ctx.currentTime);
+    g.gain.setValueAtTime(0.5, ctx.currentTime + 0.9);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
+    [440, 554, 660].forEach(f => {
+      const o = ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(f, ctx.currentTime);
+      o.frequency.setValueAtTime(f, ctx.currentTime + 0.75);
+      o.frequency.exponentialRampToValueAtTime(f * 0.75, ctx.currentTime + 1.15);
+      o.connect(g);
+      o.start();
+      o.stop(ctx.currentTime + 1.2);
+    });
+  } catch {}
+}
 function beep() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -621,11 +713,18 @@ function startTimer() {
     d.classList.toggle("warn", countdown && remaining <= 10);
   };
   paint();
+  const share = () => {
+    if (!countdown) return;
+    if (running) state.timer = { endsAt: Date.now() + remaining * 1000 };
+    else delete state.timer;
+    push(); // participants see the countdown live
+  };
   $("#tGo").onclick = () => {
     running = !running;
     $("#tGo").textContent = running ? "Pause" : "Start";
+    share();
   };
-  $("#tReset").onclick = () => { remaining = Math.round(mins * 60); elapsed = 0; running = false; $("#tGo").textContent = "Start"; paint(); };
+  $("#tReset").onclick = () => { remaining = Math.round(mins * 60); elapsed = 0; running = false; $("#tGo").textContent = "Start"; paint(); share(); };
   clearInterval(tInt);
   tInt = setInterval(() => {
     if (!running) return;

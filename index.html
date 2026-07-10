@@ -38,6 +38,12 @@ h1 .lit { background: linear-gradient(180deg,#ffd390,var(--ember) 55%,var(--embe
 .next small { display: block; font: 600 12px var(--sans); letter-spacing: .26em; text-transform: uppercase; color: var(--bone-dim); margin-bottom: 6px; }
 .next.daily { border-color: rgba(255,140,43,.5); }
 .next.elimination { border-color: rgba(224,92,74,.6); background: linear-gradient(135deg, var(--card), #2a1713); }
+.next.countdown { border-color: rgba(255,140,43,.6); font-size: 44px; font-feature-settings: "tnum"; }
+.next.countdown.warn { color: #e05c4a; border-color: rgba(224,92,74,.8); }
+.champ { text-align: center; border-color: rgba(255,215,0,.5); background: linear-gradient(135deg, var(--card), #2b2210); }
+.champ .title { font-family: var(--serif); font-size: 28px; margin: 4px 0 10px; }
+.champ .recap { color: var(--bone-dim); font-size: 14.5px; line-height: 1.7; }
+.champ .recap b { color: var(--bone); }
 
 .row { display: flex; justify-content: space-between; align-items: center; padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,.05); }
 .row:last-child { border-bottom: none; }
@@ -86,6 +92,10 @@ footer a { color: var(--ember); text-decoration: none; }
   <div class="sub">Leaderboard &middot; live</div>
   <div class="stale" id="stale">Connection lost — retrying…</div>
 
+  <div class="card champ" id="champ" style="display:none"></div>
+
+  <div class="card next countdown" id="countdown" style="display:none"></div>
+
   <div class="card next" id="next" style="display:none"></div>
 
   <div class="card" id="voteCard" style="display:none">
@@ -115,6 +125,11 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 let state = null;
 let pickedChoice = null;
+let DEVICE = localStorage.getItem("cd_device");
+if (!DEVICE) {
+  DEVICE = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  localStorage.setItem("cd_device", DEVICE);
+}
 
 const coinStr = p => state.settings && state.settings.coinMode && p.coins
   ? ` 🪙${p.coins > 1 ? "×" + p.coins : ""}` : "";
@@ -128,6 +143,8 @@ function totals(st) {
 
 function render() {
   if (!state) return;
+  renderChamp();
+  renderCountdown();
   // up next
   const next = $("#next");
   if (state.nextType) {
@@ -179,6 +196,40 @@ function render() {
   renderVote();
 }
 
+function renderChamp() {
+  const card = $("#champ");
+  const final = [...(state.log || [])].reverse().find(l => l.type === "final");
+  if (!final) { card.style.display = "none"; return; }
+  const champions = Object.keys(final.points || {});
+  const wins = type => {
+    const w = {};
+    state.log.filter(l => l.type === type).forEach(l => Object.keys(l.points || {}).forEach(n => w[n] = (w[n] || 0) + 1));
+    const best = Object.entries(w).sort((a, b) => b[1] - a[1])[0];
+    return best ? `<b>${esc(best[0])}</b> (${best[1]})` : "—";
+  };
+  const t = totals(state);
+  const top = Object.entries(t).sort((a, b) => b[1] - a[1])[0];
+  card.style.display = "";
+  card.innerHTML = `
+    <div class="title">🏆 ${champions.map(esc).join(" & ")}</div>
+    <div class="recap">
+      Most daily wins: ${wins("daily")}<br>
+      Most elimination wins: ${wins("elimination")}<br>
+      Top scorer: ${top ? `<b>${esc(top[0])}</b> (${top[1]})` : "—"}
+    </div>`;
+}
+
+function renderCountdown() {
+  const card = $("#countdown");
+  const endsAt = state.timer && state.timer.endsAt;
+  if (!endsAt || endsAt <= Date.now()) { card.style.display = "none"; return; }
+  const s = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  card.style.display = "";
+  card.classList.toggle("warn", s <= 10);
+  card.innerHTML = `<small>Time left</small>⏱ ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+setInterval(() => { if (state) renderCountdown(); }, 1000);
+
 function renderVote() {
   const card = $("#voteCard");
   if (!state.poll) { card.style.display = "none"; return; }
@@ -192,8 +243,10 @@ function renderVote() {
     <div style="font-weight:600; margin-bottom:8px">${esc(state.poll.question)}</div>
     <select id="who">
       <option value="">Who are you?</option>
-      ${state.players.filter(p => p.active !== false).map(p =>
-        `<option ${p.name === me ? "selected" : ""}>${esc(p.name)}</option>`).join("")}
+      ${state.players.filter(p => p.active !== false).map(p => {
+        const taken = (state.claimed || []).includes(p.name) && p.name !== me;
+        return `<option value="${esc(p.name)}" ${p.name === me ? "selected" : ""} ${taken ? "disabled" : ""}>${esc(p.name)}${taken ? " (taken)" : ""}</option>`;
+      }).join("")}
     </select>
     <div class="vote-opts">
       ${state.poll.options.map(o => `<button class="opt ${o === pickedChoice ? "picked" : ""}" data-o="${esc(o)}">${esc(o)}</button>`).join("")}
@@ -211,7 +264,7 @@ function renderVote() {
     localStorage.setItem("cd_me", voter);
     const r = await fetch(WORKER + "/vote", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ voter, choice: pickedChoice }),
+      body: JSON.stringify({ voter, choice: pickedChoice, device: DEVICE }),
     }).then(r => r.json()).catch(() => ({ error: "network error" }));
     if (r.error) $("#voteErr").textContent = r.error;
     else { pickedChoice = null; refresh(); }
