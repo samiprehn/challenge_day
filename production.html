@@ -332,13 +332,12 @@ function run() {
     </div>`).join("");
   $("#tabBody").innerHTML = `
     <div class="card"><h2>${editing ? `Editing: ${esc(editing.name)}` : "Record a challenge"}</h2>
-      ${upcoming.length ? `<label>From the schedule</label>
+      ${editing ? "" : `<label>Challenge (from the schedule)</label>
       <select id="chSched">
-        <option value="">— pick a planned challenge —</option>
+        <option value="">— pick a challenge —</option>
         ${upcoming.map(s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.type)})</option>`).join("")}
-      </select>` : ""}
-      <label>Challenge name</label>
-      <input id="chName" placeholder="e.g. Pole Wrestle">
+      </select>
+      ${upcoming.length ? "" : `<div class="hint">The schedule is empty — add challenges there first.</div>`}`}
       <div class="hint" id="schedRules" style="display:none"></div>
       <div class="inline">
         <div><label>Type</label>
@@ -365,8 +364,8 @@ function run() {
     const s = state.schedule.find(x => x.id === sel.value);
     runSchedId = s ? s.id : null;
     if (s) {
-      $("#chName").value = s.name;
       $("#chType").value = s.type;
+      if (s.format) $("#chFmt").value = s.format;
       renderElimExtra();
     }
     const r = $("#schedRules");
@@ -374,7 +373,6 @@ function run() {
     r.style.display = s && s.rules ? "" : "none";
   };
   if (editing) {
-    $("#chName").value = editing.name;
     $("#chType").value = editing.type;
     $("#chFmt").value = editing.format || "Individual";
     const ptsVals = Object.values(editing.points || {});
@@ -408,9 +406,11 @@ function renderElimExtra() {
   }
 }
 function saveRun() {
-  const name = $("#chName").value.trim();
+  const editingEntry = state.log.find(l => l.id === editLogId);
+  const schedItem = state.schedule.find(x => x.id === runSchedId);
+  const name = editingEntry ? editingEntry.name : schedItem && schedItem.name;
   const winners = checked("win");
-  if (!name) return $("#runMsg").innerHTML = `<span class="err">Name the challenge.</span>`;
+  if (!name) return $("#runMsg").innerHTML = `<span class="err">Pick a challenge from the schedule.</span>`;
   if (!winners.length) return $("#runMsg").innerHTML = `<span class="err">Pick at least one winner.</span>`;
   const pts = +$("#chPts").value || 0;
   const losers = checked("lose");
@@ -420,9 +420,8 @@ function saveRun() {
     m.length === winners.length && m.every(n => winners.includes(n)));
   let summary = `Won by ${teamMatch ? `${teamMatch[0]} (${winners.join(", ")})` : winners.join(" & ")} (+${pts} each)`;
   if (losers.length) summary += ` — ${losers.join(" & ")} eliminated`;
-  const editing = state.log.find(l => l.id === editLogId);
-  if (editing) {
-    Object.assign(editing, { name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
+  if (editingEntry) {
+    Object.assign(editingEntry, { name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
     editLogId = null;
     push();
     run();
@@ -433,11 +432,7 @@ function saveRun() {
   state.log.push({ id: uid(), ts: Date.now(), name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
   if (state.settings.eliminationMode)
     losers.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.active = false; });
-  // tick off the schedule item this came from, else the first un-done one of the same type
-  const s = state.schedule.find(x => x.id === runSchedId)
-    || state.schedule.find(x => !x.done && x.type === $("#chType").value && x.name === name)
-    || state.schedule.find(x => !x.done && x.type === $("#chType").value);
-  if (s) s.done = true;
+  if (schedItem) schedItem.done = true;
   push();
   if ($("#chType").value === "final") return celebrate(winners);
   $("#tabs [data-t=board]").click();
@@ -455,6 +450,7 @@ function celebrate(winners) {
 }
 
 /* ---------- schedule ---------- */
+let editSchedId = null;
 function sched() {
   // every Challenge ends with a final — keep one on the books
   if (!state.schedule.some(s => s.type === "final")) {
@@ -462,37 +458,58 @@ function sched() {
     push();
     return; // push() re-renders
   }
+  const editing = state.schedule.find(s => s.id === editSchedId);
   const items = state.schedule.map((s, i) => `
     <div class="row">
       <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}">
-        ${esc(s.name || "(unnamed)")} <span class="sched-note">· ${esc(s.type)}${s.note ? " · " + esc(s.note) : ""}</span>
+        ${esc(s.name || "(unnamed)")} <span class="sched-note">· ${esc(s.type)}${s.format ? " · " + esc(s.format) : ""}${s.gear ? " · 🎒 " + esc(s.gear) : ""}${s.note && s.note !== "from the archive" ? " · " + esc(s.note) : ""}</span>
       </span>
       ${s.rules ? `<button class="small" onclick="toggleRules(${i})">rules ▸</button>` : ""}
+      <button class="small" onclick="editSched('${esc(s.id)}')">✎</button>
       <button class="small" onclick="moveSched(${i},-1)">↑</button>
       <button class="small" onclick="moveSched(${i},1)">↓</button>
       <button class="small danger" onclick="delSched(${i})">✕</button>
     </div>
     ${s.rules ? `<div class="hint" id="rules-${i}" style="display:none; padding:4px 2px 10px">${esc(s.rules)}</div>` : ""}`).join("");
-  const packing = state.schedule.filter(s => !s.done && s.note && s.note !== "from the archive");
+  const packing = state.schedule.filter(s => !s.done &&
+    (s.gear || (s.note && s.note !== "from the archive")));
   $("#tabBody").innerHTML = `
     <div class="card"><h2>Run of show</h2>
       <div class="hint" style="margin-bottom:8px">Participants only ever see the type of the next un-done item — never the name.
         Need ideas? <a href="${ARCHIVE}" target="_blank" rel="noopener">Browse the archive</a> and hit the “local” chip — you can add straight to this schedule from there.</div>
       ${items || `<div class="sched-note">Nothing planned yet.</div>`}
-      <div class="inline" style="margin-top:12px">
-        <input id="sName" placeholder="Challenge name (secret)">
-        <select id="sType" style="flex:0 0 130px"><option value="daily">Daily</option><option value="elimination">Elimination</option><option value="final">Final</option></select>
-        <button class="primary" onclick="addSched()">Add</button>
+    </div>
+    <div class="card"><h2>${editing ? `Editing: ${esc(editing.name)}` : "Add a challenge"}</h2>
+      <div class="inline">
+        <input id="sName" placeholder="Challenge name (secret)" value="${editing ? esc(editing.name) : ""}">
+        <select id="sType" style="flex:0 0 120px">
+          <option value="daily">Daily</option><option value="elimination">Elimination</option><option value="final">Final</option>
+        </select>
+        <select id="sFmt" style="flex:0 0 120px">
+          <option value="">Format?</option><option>Individual</option><option>Pairs</option><option>Teams</option>
+        </select>
       </div>
-      <input id="sNote" placeholder="Setup notes (gear, location…)" style="margin-top:8px">
+      <div class="inline" style="margin-top:8px">
+        <input id="sGear" placeholder="Gear (buckets, rope…)" value="${editing ? esc(editing.gear || "") : ""}">
+        <input id="sNote" placeholder="Notes (location, setup…)" value="${editing && editing.note !== "from the archive" ? esc(editing.note || "") : ""}">
+      </div>
+      <div class="inline" style="margin-top:10px">
+        <button class="primary" style="flex:1" onclick="addSched()">${editing ? "Save changes" : "Add"}</button>
+        ${editing ? `<button onclick="editSchedId=null; sched()">Cancel</button>` : ""}
+      </div>
     </div>
     <div class="card"><h2>Packing list</h2>
-      <div class="hint" style="margin-bottom:6px">Setup notes from every upcoming challenge — checkboxes are just for you, not saved.</div>
+      <div class="hint" style="margin-bottom:6px">Gear + notes from every upcoming challenge — checkboxes are just for you, not saved.</div>
       ${packing.length ? `<div class="checks" style="flex-direction:column; align-items:stretch">
-        ${packing.map(s => `<label><input type="checkbox">${esc(s.name)} — ${esc(s.note)}</label>`).join("")}
-      </div>` : `<div class="sched-note">Nothing yet — add setup notes to schedule items (challenges added from the archive bring detected gear automatically).</div>`}
+        ${packing.map(s => `<label><input type="checkbox">${esc(s.name)} — ${esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; "))}</label>`).join("")}
+      </div>` : `<div class="sched-note">Nothing yet — add gear or notes to schedule items (challenges added from the archive bring detected gear automatically).</div>`}
     </div>`;
+  if (editing) {
+    $("#sType").value = editing.type;
+    $("#sFmt").value = editing.format || "";
+  }
 }
+function editSched(id) { editSchedId = id; sched(); window.scrollTo({ top: 0, behavior: "smooth" }); }
 function toggleRules(i) {
   const el = $(`#rules-${i}`);
   el.style.display = el.style.display === "none" ? "" : "none";
@@ -500,13 +517,23 @@ function toggleRules(i) {
 function addSched() {
   const name = $("#sName").value.trim();
   if (!name) return;
-  const item = { id: uid(), name, type: $("#sType").value, note: $("#sNote").value.trim(), done: false };
-  // keep the final at the end
-  const last = state.schedule[state.schedule.length - 1];
-  if (item.type !== "final" && last && last.type === "final" && !last.done)
-    state.schedule.splice(state.schedule.length - 1, 0, item);
-  else
-    state.schedule.push(item);
+  const fields = {
+    name, type: $("#sType").value, format: $("#sFmt").value,
+    gear: $("#sGear").value.trim(), note: $("#sNote").value.trim(),
+  };
+  const editing = state.schedule.find(s => s.id === editSchedId);
+  if (editing) {
+    Object.assign(editing, fields);
+    editSchedId = null;
+  } else {
+    const item = { id: uid(), done: false, ...fields };
+    // keep the final at the end
+    const last = state.schedule[state.schedule.length - 1];
+    if (item.type !== "final" && last && last.type === "final" && !last.done)
+      state.schedule.splice(state.schedule.length - 1, 0, item);
+    else
+      state.schedule.push(item);
+  }
   push();
 }
 function moveSched(i, d) {
