@@ -486,12 +486,12 @@ function sched() {
       </div>
       <input id="sNote" placeholder="Setup notes (gear, location…)" style="margin-top:8px">
     </div>
-    ${packing.length ? `<div class="card"><h2>Packing list</h2>
+    <div class="card"><h2>Packing list</h2>
       <div class="hint" style="margin-bottom:6px">Setup notes from every upcoming challenge — checkboxes are just for you, not saved.</div>
-      <div class="checks" style="flex-direction:column; align-items:stretch">
+      ${packing.length ? `<div class="checks" style="flex-direction:column; align-items:stretch">
         ${packing.map(s => `<label><input type="checkbox">${esc(s.name)} — ${esc(s.note)}</label>`).join("")}
-      </div>
-    </div>` : ""}`;
+      </div>` : `<div class="sched-note">Nothing yet — add setup notes to schedule items (challenges added from the archive bring detected gear automatically).</div>`}
+    </div>`;
 }
 function toggleRules(i) {
   const el = $(`#rules-${i}`);
