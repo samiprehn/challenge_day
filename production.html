@@ -158,15 +158,12 @@ async function push() {
 }
 async function saveToken() {
   token = $("#tokenIn").value.trim();
-  const test = await fetch(WORKER + "/update", {
-    method: "POST", headers: { "Content-Type": "application/json", "X-Token": token },
-    body: JSON.stringify({ state: await pull().catch(() => null) || defaultState() }),
-  }).then(r => r.json()).catch(() => ({ error: "network error" }));
+  // verify by reading only — never write here, so a flaky connection can't ever overwrite live state with a blank one
+  const test = await pull().catch(() => ({ error: "network error" }));
   if (test.error) { $("#gateErr").textContent = test.error === "bad token" ? "Wrong token." : test.error; return; }
   localStorage.setItem("cd_token", token);
   boot();
 }
-const defaultState = () => ({ players: [], settings: { eliminationMode: false }, schedule: [], log: [], poll: null });
 
 async function boot() {
   try {
