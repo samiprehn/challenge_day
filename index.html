@@ -158,18 +158,27 @@ function render() {
   const t = totals(state);
   const hasTeams = state.players.some(p => p.team);
   if (hasTeams) {
-    const groups = {};
-    state.players.forEach(p => { const g = (p.active !== false && p.team) || "Free agents"; (groups[g] = groups[g] || []).push(p); });
+    const groups = {}, eliminated = [];
+    state.players.forEach(p => {
+      if (p.active === false) { eliminated.push(p); return; }
+      const g = p.team || "Free agents";
+      (groups[g] = groups[g] || []).push(p);
+    });
     const gTotal = g => g.reduce((s, p) => s + (t[p.name] || 0), 0);
     $("#board").innerHTML = Object.entries(groups)
       .sort((a, b) => gTotal(b[1]) - gTotal(a[1]))
       .map(([team, members]) => `
         <div class="row team-head"><span class="name">${esc(team)}</span><span class="pts">${gTotal(members)}</span></div>
         ${members.sort((a, b) => (t[b.name] || 0) - (t[a.name] || 0)).map(p => `
-          <div class="row member ${p.active === false ? "out" : ""}">
+          <div class="row member">
             <span class="name">${esc(p.name)}${coinStr(p)}</span>
             <span class="pts dim">${t[p.name] || 0}</span>
-          </div>`).join("")}`).join("");
+          </div>`).join("")}`).join("")
+      + eliminated.sort((a, b) => (t[b.name] || 0) - (t[a.name] || 0)).map(p => `
+        <div class="row member out">
+          <span class="name">${esc(p.name)}${coinStr(p)}</span>
+          <span class="pts dim">${t[p.name] || 0}</span>
+        </div>`).join("");
   } else {
     const players = [...state.players].sort((a, b) =>
       (b.active !== false) - (a.active !== false) || t[b.name] - t[a.name] || a.name.localeCompare(b.name));
