@@ -681,7 +681,8 @@ function vote() {
     const winningTeam = Object.entries(allTeams).find(([, m]) =>
       m.length === lastWinners.length && m.every(n => lastWinners.includes(n)));
     const winningTeamName = winningTeam ? winningTeam[0] : null;
-    const playerPrecheck = active().map(x => x.name).filter(n => !lastWinners.includes(n));
+    const hasTeams = Object.keys(allTeams).length > 0;
+    const playerPrecheck = hasTeams ? [] : active().map(x => x.name).filter(n => !lastWinners.includes(n));
     const teamPrecheck = Object.keys(allTeams).filter(t => t !== winningTeamName);
     body = `
       <label>Question</label>
