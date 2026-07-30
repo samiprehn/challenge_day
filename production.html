@@ -680,6 +680,7 @@ function vote() {
       <input id="pqOther" placeholder="Type your question" style="display:none; margin-top:8px">
       <label>Options — players</label>
       ${checklist("popt", active().map(x => x.name))}
+      ${Object.keys(teams()).length ? `<label>Options — teams</label>${checklist("popt", Object.keys(teams()))}` : ""}
       <label>…or custom options (comma-separated)</label>
       <input id="pcustom" placeholder="Team Fire, Team Water">
       <button class="primary" style="width:100%; margin-top:12px" onclick="openPoll()">Open voting</button>
