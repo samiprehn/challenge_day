@@ -660,9 +660,9 @@ function vote() {
   const p = state.poll;
   let body;
   if (p && p.open) {
-    const tally = {};
-    p.options.forEach(o => tally[o] = 0);
-    Object.values(p.votes || {}).forEach(c => tally[c] = (tally[c] || 0) + 1);
+    const tally = {}, votersByOption = {};
+    p.options.forEach(o => { tally[o] = 0; votersByOption[o] = []; });
+    Object.entries(p.votes || {}).forEach(([voter, c]) => { tally[c] = (tally[c] || 0) + 1; (votersByOption[c] = votersByOption[c] || []).push(voter); });
     const max = Math.max(1, ...Object.values(tally));
     const nVotes = Object.keys(p.votes || {}).length;
     body = `
@@ -671,7 +671,8 @@ function vote() {
       <div class="tally" style="margin-top:10px">
         ${p.options.map(o => `<div style="margin-bottom:8px">
           <div style="display:flex; justify-content:space-between"><span>${esc(o)}</span><b style="color:var(--ember)">${tally[o]}</b></div>
-          <div class="bar" style="width:${(tally[o] / max) * 100}%"></div></div>`).join("")}
+          <div class="bar" style="width:${(tally[o] / max) * 100}%"></div>
+          ${votersByOption[o].length ? `<div class="sched-note" style="margin-top:3px">${esc(votersByOption[o].join(", "))}</div>` : ""}</div>`).join("")}
       </div>
       <button class="danger" style="width:100%; margin-top:10px" onclick="closePoll()">Close voting</button>`;
   } else {
@@ -703,11 +704,14 @@ function vote() {
   if ($("#pq")) $("#pq").onchange = () => $("#pqOther").style.display = $("#pq").value === "other" ? "" : "none";
 }
 function renderClosedPoll(p) {
-  const tally = {};
-  Object.values(p.votes || {}).forEach(c => tally[c] = (tally[c] || 0) + 1);
+  const tally = {}, votersByOption = {};
+  Object.entries(p.votes || {}).forEach(([voter, c]) => { tally[c] = (tally[c] || 0) + 1; (votersByOption[c] = votersByOption[c] || []).push(voter); });
   const lines = Object.entries(tally).sort((a, b) => b[1] - a[1]);
   return `<div style="margin-top:16px"><h2>Last vote — ${esc(p.question)}</h2>
-    ${lines.map(([o, n]) => `<div class="row"><span class="name">${esc(o)}</span><span class="pts">${n}</span></div>`).join("") || '<div class="sched-note">No votes were cast.</div>'}
+    ${lines.map(([o, n]) => `<div class="row" style="flex-direction:column; align-items:stretch">
+      <div style="display:flex; justify-content:space-between"><span class="name">${esc(o)}</span><span class="pts">${n}</span></div>
+      <div class="sched-note">${esc((votersByOption[o] || []).join(", "))}</div>
+    </div>`).join("") || '<div class="sched-note">No votes were cast.</div>'}
     </div>`;
 }
 function openPoll() {
