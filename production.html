@@ -340,7 +340,13 @@ function assignTeamGroup() {
   if (!members.length) return alert("Pick at least one player.");
   const name = $("#assignName").value.trim();
   const label = name || members.map(n => n.split(" ")[0]).join(" & ");
+  const oldTeams = new Set(members.map(n => { const p = state.players.find(p => p.name === n); return p && p.team; }).filter(Boolean));
   members.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.team = label; });
+  // if reassigning left an old team with a single member, that's not a team anymore — clear it
+  oldTeams.forEach(t => {
+    const remaining = state.players.filter(p => p.team === t);
+    if (remaining.length === 1) delete remaining[0].team;
+  });
   push();
 }
 function coinEdit(n) {
