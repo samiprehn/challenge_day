@@ -191,8 +191,8 @@ function totals() {
   state.log.forEach(l => Object.entries(l.points || {}).forEach(([n, p]) => t[n] = (t[n] || 0) + p));
   return t;
 }
-const checklist = (id, names) => `<div class="checks">${names.map(n =>
-  `<label><input type="checkbox" data-cl="${id}" value="${esc(n)}">${esc(n)}</label>`).join("")}</div>`;
+const checklist = (id, names, precheck) => `<div class="checks">${names.map(n =>
+  `<label><input type="checkbox" data-cl="${id}" value="${esc(n)}" ${precheck && precheck.includes(n) ? "checked" : ""}>${esc(n)}</label>`).join("")}</div>`;
 const checked = id => [...document.querySelectorAll(`input[data-cl="${id}"]:checked`)].map(i => i.value);
 const teams = () => {
   const g = {};
@@ -675,6 +675,14 @@ function vote() {
       </div>
       <button class="danger" style="width:100%; margin-top:10px" onclick="closePoll()">Close voting</button>`;
   } else {
+    const lastLog = [...state.log].reverse()[0];
+    const lastWinners = lastLog ? Object.keys(lastLog.points || {}) : [];
+    const allTeams = teams();
+    const winningTeam = Object.entries(allTeams).find(([, m]) =>
+      m.length === lastWinners.length && m.every(n => lastWinners.includes(n)));
+    const winningTeamName = winningTeam ? winningTeam[0] : null;
+    const playerPrecheck = active().map(x => x.name).filter(n => !lastWinners.includes(n));
+    const teamPrecheck = Object.keys(allTeams).filter(t => t !== winningTeamName);
     body = `
       <label>Question</label>
       <select id="pq">
@@ -683,8 +691,8 @@ function vote() {
       </select>
       <input id="pqOther" placeholder="Type your question" style="display:none; margin-top:8px">
       <label>Options — players</label>
-      ${checklist("popt", active().map(x => x.name))}
-      ${Object.keys(teams()).length ? `<label>Options — teams</label>${checklist("popt", Object.keys(teams()))}` : ""}
+      ${checklist("popt", active().map(x => x.name), playerPrecheck)}
+      ${Object.keys(allTeams).length ? `<label>Options — teams</label>${checklist("popt", Object.keys(allTeams), teamPrecheck)}` : ""}
       <label>…or custom options (comma-separated)</label>
       <input id="pcustom" placeholder="Team Fire, Team Water">
       <button class="primary" style="width:100%; margin-top:12px" onclick="openPoll()">Open voting</button>
