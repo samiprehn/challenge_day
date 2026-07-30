@@ -59,6 +59,7 @@ button.small { font-size: 13px; padding: 5px 10px; }
 }
 .checks label:has(input:checked) { border-color: var(--ember); color: var(--ember); background: rgba(255,140,43,.08); }
 .checks input { width: auto; accent-color: var(--ember-deep); }
+.row select.gsel { width: auto; padding: 4px 6px; font-size: 13px; flex: 0 0 auto; }
 .inline { display: flex; gap: 8px; align-items: end; }
 .inline > * { flex: 1; }
 .inline > button { flex: 0 0 auto; }
@@ -191,6 +192,11 @@ function totals() {
   state.log.forEach(l => Object.entries(l.points || {}).forEach(([n, p]) => t[n] = (t[n] || 0) + p));
   return t;
 }
+function coinPools() {
+  const pools = { M: 0, W: 0, total: 0 };
+  state.players.forEach(p => { pools.total += (p.coins || 0); if (pools[p.gender] !== undefined) pools[p.gender] += (p.coins || 0); });
+  return pools;
+}
 const checklist = (id, names, precheck) => `<div class="checks">${names.map(n =>
   `<label><input type="checkbox" data-cl="${id}" value="${esc(n)}" ${precheck && precheck.includes(n) ? "checked" : ""}>${esc(n)}</label>`).join("")}</div>`;
 const checked = id => [...document.querySelectorAll(`input[data-cl="${id}"]:checked`)].map(i => i.value);
@@ -233,6 +239,11 @@ function board() {
     (a.team || "￿").localeCompare(b.team || "￿") || t[b.name] - t[a.name]).map(p => `
     <div class="row ${p.active === false ? "out" : ""}">
       <span class="name">${esc(p.name)}${p.coins ? ` 🪙${p.coins > 1 ? "×" + p.coins : ""}` : ""}${p.team ? ` <span class="sched-note">· ${esc(p.team)}</span>` : ""}</span>
+      <select class="gsel" onchange="setGender('${esc(p.name)}', this.value)">
+        <option value="">–</option>
+        <option value="M" ${p.gender === "M" ? "selected" : ""}>M</option>
+        <option value="W" ${p.gender === "W" ? "selected" : ""}>W</option>
+      </select>
       <span class="pts">${t[p.name] || 0}</span>
       ${state.settings.coinMode ? `<button class="small" onclick="coinEdit('${esc(p.name)}')">🪙 edit</button>` : ""}
       ${state.claims && state.claims[p.name] ? `<button class="small" onclick="releaseName('${esc(p.name)}')" title="unlink from their phone">release</button>` : ""}
@@ -267,6 +278,20 @@ function board() {
         🪙 Elimination coins (win an elimination → earn a coin; a coin is required for the final)
       </label></div>
       <div class="hint">Coins are awarded automatically when you record an elimination win. Adjust manually with the 🪙 buttons above for steals, trades, or fixes.</div>
+      ${state.settings.coinMode ? `
+      <div class="inline" style="margin-top:8px">
+        <div><label>Coin cap (blank = unlimited)</label>
+          <input id="coinCap" type="number" min="1" value="${state.settings.coinCap || ""}"></div>
+      </div>
+      ${state.settings.coinCap ? `<div class="checks" style="margin-top:8px"><label>
+          <input type="checkbox" id="coinCapByGender" ${state.settings.coinCapByGender ? "checked" : ""}>
+          Track the cap separately per gender (requires tagging players M/W)
+        </label></div>` : ""}
+      <div class="hint">Once the pool hits the cap, an elimination win steals a coin from a loser who has one instead of minting a new one.${state.settings.coinCapByGender ? " Tag each player's gender with the M/W selector above — a steal only comes from the same gender." : ""}</div>
+      ${state.settings.coinCap ? (state.settings.coinCapByGender
+        ? `<div class="hint">🪙 Men: ${coinPools().M}/${state.settings.coinCap} · Women: ${coinPools().W}/${state.settings.coinCap}</div>`
+        : `<div class="hint">🪙 Coins in play: ${coinPools().total}/${state.settings.coinCap}</div>`) : ""}
+      ` : ""}
     </div>
     <div class="card"><h2>Event</h2>
       <div class="inline">
@@ -277,12 +302,24 @@ function board() {
     </div>`;
   $("#elimMode").onchange = e => { state.settings.eliminationMode = e.target.checked; push(); };
   $("#coinMode").onchange = e => { state.settings.coinMode = e.target.checked; push(); };
+  if ($("#coinCap")) $("#coinCap").onchange = e => {
+    const v = parseInt(e.target.value, 10);
+    state.settings.coinCap = (!v || v <= 0) ? null : v;
+    push();
+  };
+  if ($("#coinCapByGender")) $("#coinCapByGender").onchange = e => { state.settings.coinCapByGender = e.target.checked; push(); };
   $("#newPlayer").addEventListener("keydown", e => { if (e.key === "Enter") addPlayer(); });
 }
 function addPlayer() {
   const n = $("#newPlayer").value.trim();
   if (!n || state.players.some(p => p.name === n)) return;
   state.players.push({ name: n, active: true });
+  push();
+}
+function setGender(name, g) {
+  const p = state.players.find(p => p.name === name);
+  if (!p) return;
+  if (g) p.gender = g; else delete p.gender;
   push();
 }
 function assignTeamGroup() {
@@ -315,7 +352,7 @@ function newEvent(keepPlayers) {
     ts: Date.now(), players: state.players, log: state.log, schedule: state.schedule,
   });
   state.players = keepPlayers
-    ? state.players.map(p => ({ name: p.name, active: true }))
+    ? state.players.map(p => ({ name: p.name, active: true, ...(p.gender ? { gender: p.gender } : {}) }))
     : [];
   state.log = [];
   state.schedule = [];
@@ -405,7 +442,9 @@ function renderElimExtra() {
   const type = $("#chType").value;
   if (type === "elimination") {
     $("#elimExtra").innerHTML = `
-      ${state.settings.coinMode ? `<div class="hint" style="margin-top:8px">🪙 Coin mode: the winner(s) earn a coin automatically.</div>` : ""}
+      ${state.settings.coinMode ? `<div class="hint" style="margin-top:8px">🪙 Coin mode: the winner(s) earn a coin${
+        state.settings.coinCap ? ` — capped at ${state.settings.coinCap}${state.settings.coinCapByGender ? " per gender" : ""}; once full, winners steal from a loser instead` : ""
+      } automatically.</div>` : ""}
       <label>Eliminated / loser ${state.settings.eliminationMode ? "(will be marked out)" : "(for the story — stays in)"}</label>
       ${teamButtons("lose")}
       ${checklist("lose", active().sort((a, b) => (a.team || "￿").localeCompare(b.team || "￿")).map(p => p.name))}`;
@@ -424,6 +463,11 @@ function saveRun() {
   const winners = checked("win");
   if (!name) return $("#runMsg").innerHTML = `<span class="err">Pick a challenge from the schedule.</span>`;
   if (!winners.length) return $("#runMsg").innerHTML = `<span class="err">Pick at least one winner.</span>`;
+  if (state.settings.coinMode && state.settings.coinCap && state.settings.coinCapByGender && $("#chType").value === "elimination") {
+    const missing = winners.filter(n => { const p = state.players.find(p => p.name === n); return !p || !p.gender; });
+    if (missing.length) return $("#runMsg").innerHTML =
+      `<span class="err">Set a gender (M/W) for ${missing.join(", ")} on the Board tab before recording this win.</span>`;
+  }
   const pts = +$("#chPts").value || 0;
   const losers = checked("lose");
   const points = {};
@@ -439,8 +483,10 @@ function saveRun() {
     run();
     return;
   }
-  if (state.settings.coinMode && $("#chType").value === "elimination")
-    winners.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.coins = (p.coins || 0) + 1; });
+  if (state.settings.coinMode && $("#chType").value === "elimination") {
+    const notes = applyCoinAward(winners, losers);
+    if (notes.length) summary += ` — ${notes.join("; ")}`;
+  }
   state.log.push({ id: uid(), ts: Date.now(), name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
   if (state.settings.eliminationMode)
     losers.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.active = false; });
@@ -448,6 +494,36 @@ function saveRun() {
   push();
   if ($("#chType").value === "final") return celebrate(winners);
   $("#tabs [data-t=board]").click();
+}
+function applyCoinAward(winners, losers) {
+  const cap = state.settings.coinCap;
+  const byGender = state.settings.coinCapByGender;
+  const notes = [];
+  winners.forEach(wname => {
+    const w = state.players.find(p => p.name === wname);
+    if (!w) return;
+    if (!cap) { w.coins = (w.coins || 0) + 1; return; } // uncapped: legacy behavior
+    const g = w.gender;
+    const inPool = p => byGender ? p.gender === g : true;
+    const label = byGender ? (g === "M" ? "Men" : "Women") : "Coins in play";
+    const poolSum = state.players.filter(inPool).reduce((s, p) => s + (p.coins || 0), 0);
+    if (poolSum < cap) {
+      w.coins = (w.coins || 0) + 1;
+      notes.push(`🪙 ${wname} earns a coin (${label} ${poolSum + 1}/${cap})`);
+    } else {
+      const victim = losers
+        .map(n => state.players.find(p => p.name === n))
+        .find(p => p && inPool(p) && (p.coins || 0) > 0);
+      if (victim) {
+        victim.coins -= 1;
+        w.coins = (w.coins || 0) + 1;
+        notes.push(`🪙 ${wname} steals a coin from ${victim.name}`);
+      } else {
+        notes.push(`🪙 ${label} cap reached (${cap}/${cap}) — no eligible loser to steal from, ${wname} gets no coin`);
+      }
+    }
+  });
+  return notes;
 }
 function celebrate(winners) {
   const t = totals();
