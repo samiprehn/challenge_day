@@ -179,6 +179,7 @@ async function boot() {
 setInterval(async () => {
   if (!state || document.activeElement.matches("input, select, textarea")) return;
   if ($("#big").classList.contains("show")) return;
+  if (tab === "run") return; // don't wipe an in-progress challenge selection / winner-loser picks
   try { const s = await pull(); if (!s.error) { state = s; render(); } } catch {}
 }, 8000);
 
