@@ -240,7 +240,6 @@ function renderVote() {
     return;
   }
   $("#voteBody").innerHTML = `
-    <div style="font-weight:600; margin-bottom:8px">${esc(state.poll.question)}</div>
     <select id="who">
       <option value="">Click to pick your name</option>
       ${state.players.filter(p => p.active !== false).map(p => {
@@ -248,6 +247,7 @@ function renderVote() {
         return `<option value="${esc(p.name)}" ${p.name === me ? "selected" : ""} ${taken ? "disabled" : ""}>${esc(p.name)}${taken ? " (taken)" : ""}</option>`;
       }).join("")}
     </select>
+    <div style="font-weight:600; margin:10px 0 8px">${esc(state.poll.question)}</div>
     <div class="vote-opts">
       ${state.poll.options.map(o => `<button class="opt ${o === pickedChoice ? "picked" : ""}" data-o="${esc(o)}">${esc(o)}</button>`).join("")}
     </div>
