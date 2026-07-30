@@ -203,6 +203,12 @@ const teams = () => {
   active().forEach(p => { if (p.team) (g[p.team] = g[p.team] || []).push(p.name); });
   return g;
 };
+// if a team is down to one active member (their partner left/was eliminated), it's not a team anymore
+function clearSingletonTeam(team) {
+  if (!team) return;
+  const remaining = active().filter(p => p.team === team);
+  if (remaining.length === 1) delete remaining[0].team;
+}
 // one-tap team buttons that check/uncheck a whole team in a checklist
 const teamButtons = id => {
   const g = teams();
@@ -342,11 +348,7 @@ function assignTeamGroup() {
   const label = name || members.map(n => n.split(" ")[0]).join(" & ");
   const oldTeams = new Set(members.map(n => { const p = state.players.find(p => p.name === n); return p && p.team; }).filter(Boolean));
   members.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.team = label; });
-  // if reassigning left an old team with a single member, that's not a team anymore — clear it
-  oldTeams.forEach(t => {
-    const remaining = state.players.filter(p => p.team === t);
-    if (remaining.length === 1) delete remaining[0].team;
-  });
+  oldTeams.forEach(clearSingletonTeam);
   push();
 }
 function coinEdit(n) {
@@ -382,7 +384,9 @@ function newEvent(keepPlayers) {
 }
 function toggleOut(n) {
   const p = state.players.find(p => p.name === n);
+  const eliminating = p.active !== false;
   p.active = p.active === false;
+  if (eliminating) clearSingletonTeam(p.team);
   push();
 }
 function removePlayer(n) {
@@ -507,8 +511,11 @@ function saveRun() {
     if (notes.length) summary += ` — ${notes.join("; ")}`;
   }
   state.log.push({ id: uid(), ts: Date.now(), name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
-  if (state.settings.eliminationMode)
-    losers.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.active = false; });
+  if (state.settings.eliminationMode) {
+    const eliminatedTeams = new Set();
+    losers.forEach(n => { const p = state.players.find(p => p.name === n); if (p) { eliminatedTeams.add(p.team); p.active = false; } });
+    eliminatedTeams.forEach(clearSingletonTeam);
+  }
   if (schedItem) schedItem.done = true;
   push();
   if ($("#chType").value === "final") return celebrate(winners);
