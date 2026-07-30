@@ -153,7 +153,7 @@ async function push() {
     body: JSON.stringify({ state }),
   }).then(r => r.json()).catch(() => ({ error: "network error" }));
   if (r.error) alert("Save failed: " + r.error);
-  else state = await pull(); // pick up any votes merged server-side
+  else state = r.state; // server hands back the merged state (picks up any votes merged server-side) — no need for a follow-up read that could race a not-yet-propagated KV write
   render();
 }
 async function saveToken() {

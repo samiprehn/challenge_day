@@ -50,7 +50,9 @@ export default {
         incoming.poll.votes = { ...(incoming.poll.votes || {}), ...(state.poll.votes || {}) };
       }
       await env.STATE.put("event", JSON.stringify(incoming));
-      return json({ ok: true });
+      // hand back the exact (merged) state we just wrote, so the client doesn't need a
+      // follow-up read that could race a not-yet-propagated KV write and show stale data
+      return json({ ok: true, state: incoming });
     }
 
     if (req.method === "POST" && url.pathname === "/vote") {
