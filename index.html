@@ -159,7 +159,7 @@ function render() {
   const hasTeams = state.players.some(p => p.team);
   if (hasTeams) {
     const groups = {};
-    state.players.forEach(p => (groups[p.team || "Free agents"] = groups[p.team || "Free agents"] || []).push(p));
+    state.players.forEach(p => { const g = (p.active !== false && p.team) || "Free agents"; (groups[g] = groups[g] || []).push(p); });
     const gTotal = g => g.reduce((s, p) => s + (t[p.name] || 0), 0);
     $("#board").innerHTML = Object.entries(groups)
       .sort((a, b) => gTotal(b[1]) - gTotal(a[1]))
