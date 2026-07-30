@@ -248,6 +248,14 @@ function board() {
         <button class="primary" onclick="addPlayer()">Add</button>
       </div>
     </div>
+    <div class="card"><h2>Assign teams / pairs</h2>
+      <div class="hint" style="margin-bottom:8px">Check a group, optionally name it, then Assign — repeat for each group. Leave the name blank to auto-name from first names.</div>
+      ${checklist("assign", active().map(p => p.name))}
+      <div class="inline" style="margin-top:10px">
+        <input id="assignName" placeholder="Team name (optional)">
+        <button class="primary" onclick="assignTeamGroup()">Assign</button>
+      </div>
+    </div>
     <div class="card"><h2>Settings</h2>
       <div class="checks"><label>
         <input type="checkbox" id="elimMode" ${state.settings.eliminationMode ? "checked" : ""}>
@@ -275,6 +283,14 @@ function addPlayer() {
   const n = $("#newPlayer").value.trim();
   if (!n || state.players.some(p => p.name === n)) return;
   state.players.push({ name: n, active: true });
+  push();
+}
+function assignTeamGroup() {
+  const members = checked("assign");
+  if (!members.length) return alert("Pick at least one player.");
+  const name = $("#assignName").value.trim();
+  const label = name || members.map(n => n.split(" ")[0]).join(" & ");
+  members.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.team = label; });
   push();
 }
 function coinEdit(n) {
@@ -503,7 +519,7 @@ function sched() {
     $("#sFmt").value = editing.format || "";
   }
 }
-function editSched(id) { editSchedId = id; sched(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+function editSched(id) { editSchedId = id; sched(); window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); }
 
 /* ---------- packing list ---------- */
 function pack() {
@@ -657,7 +673,11 @@ function vote() {
   } else {
     body = `
       <label>Question</label>
-      <input id="pq" placeholder="Who goes into elimination?">
+      <select id="pq">
+        <option value="Who should go into elimination?">Who should go into elimination?</option>
+        <option value="other">Other…</option>
+      </select>
+      <input id="pqOther" placeholder="Type your question" style="display:none; margin-top:8px">
       <label>Options — players</label>
       ${checklist("popt", active().map(x => x.name))}
       <label>…or custom options (comma-separated)</label>
@@ -666,6 +686,7 @@ function vote() {
       ${p && !p.open ? renderClosedPoll(p) : ""}`;
   }
   $("#tabBody").innerHTML = `<div class="card"><h2>Tribunal vote</h2>${body}</div>`;
+  if ($("#pq")) $("#pq").onchange = () => $("#pqOther").style.display = $("#pq").value === "other" ? "" : "none";
 }
 function renderClosedPoll(p) {
   const tally = {};
@@ -676,7 +697,7 @@ function renderClosedPoll(p) {
     </div>`;
 }
 function openPoll() {
-  const q = $("#pq").value.trim();
+  const q = $("#pq").value === "other" ? $("#pqOther").value.trim() : $("#pq").value;
   const opts = [...checked("popt"), ...$("#pcustom").value.split(",").map(s => s.trim()).filter(Boolean)];
   if (!q || opts.length < 2) return alert("Need a question and at least two options.");
   state.poll = { id: uid(), open: true, question: q, options: opts, votes: {} };
