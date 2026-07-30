@@ -59,6 +59,7 @@ button.small { font-size: 13px; padding: 5px 10px; }
 }
 .checks label:has(input:checked) { border-color: var(--ember); color: var(--ember); background: rgba(255,140,43,.08); }
 .checks input { width: auto; accent-color: var(--ember-deep); }
+.assign-opt.dim, .assign-opt.same-gender { opacity: .4; }
 .row select.gsel { width: auto; padding: 4px 6px; font-size: 13px; flex: 0 0 auto; }
 .inline { display: flex; gap: 8px; align-items: end; }
 .inline > * { flex: 1; }
@@ -261,7 +262,7 @@ function board() {
     </div>
     <div class="card"><h2>Assign teams / pairs</h2>
       <div class="hint" style="margin-bottom:8px">Check a group, optionally name it, then Assign — repeat for each group. Leave the name blank to auto-name from first names.</div>
-      ${checklist("assign", active().map(p => p.name))}
+      ${assignChecklist()}
       <div class="inline" style="margin-top:10px">
         <input id="assignName" placeholder="Team name (optional)">
         <button class="primary" onclick="assignTeamGroup()">Assign</button>
@@ -321,6 +322,21 @@ function setGender(name, g) {
   if (!p) return;
   if (g) p.gender = g; else delete p.gender;
   push();
+}
+const assignChecklist = () => `<div class="checks">${active().map(p => `
+  <label class="assign-opt ${p.team ? "dim" : ""}" data-name="${esc(p.name)}" data-gender="${esc(p.gender || "")}">
+    <input type="checkbox" data-cl="assign" value="${esc(p.name)}" onchange="onAssignPick()">
+    ${esc(p.name)}${p.team ? ` <span class="sched-note">· ${esc(p.team)}</span>` : ""}
+  </label>`).join("")}</div>`;
+function onAssignPick() {
+  const genders = checked("assign")
+    .map(n => { const p = state.players.find(p => p.name === n); return p && p.gender; })
+    .filter(Boolean);
+  document.querySelectorAll("label.assign-opt").forEach(label => {
+    const g = label.dataset.gender;
+    const box = label.querySelector("input");
+    label.classList.toggle("same-gender", !!g && genders.includes(g) && !box.checked);
+  });
 }
 function assignTeamGroup() {
   const members = checked("assign");
