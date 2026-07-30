@@ -385,8 +385,9 @@ function newEvent(keepPlayers) {
 function toggleOut(n) {
   const p = state.players.find(p => p.name === n);
   const eliminating = p.active !== false;
+  const team = p.team;
   p.active = p.active === false;
-  if (eliminating) clearSingletonTeam(p.team);
+  if (eliminating) { delete p.team; clearSingletonTeam(team); }
   push();
 }
 function removePlayer(n) {
@@ -513,7 +514,7 @@ function saveRun() {
   state.log.push({ id: uid(), ts: Date.now(), name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
   if (state.settings.eliminationMode) {
     const eliminatedTeams = new Set();
-    losers.forEach(n => { const p = state.players.find(p => p.name === n); if (p) { eliminatedTeams.add(p.team); p.active = false; } });
+    losers.forEach(n => { const p = state.players.find(p => p.name === n); if (p) { eliminatedTeams.add(p.team); p.active = false; delete p.team; } });
     eliminatedTeams.forEach(clearSingletonTeam);
   }
   if (schedItem) schedItem.done = true;
