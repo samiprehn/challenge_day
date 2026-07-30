@@ -240,7 +240,7 @@ function board() {
   const t = totals();
   const hasTeams = state.players.some(p => p.team);
   const rows = [...state.players].sort((a, b) =>
-    (a.team || "￿").localeCompare(b.team || "￿") || t[b.name] - t[a.name]).map(p => `
+    (a.active === false) - (b.active === false) || (a.team || "￿").localeCompare(b.team || "￿") || t[b.name] - t[a.name]).map(p => `
     <div class="row ${p.active === false ? "out" : ""}">
       <span class="name">${esc(p.name)}${p.coins ? ` 🪙${p.coins > 1 ? "×" + p.coins : ""}` : ""}${p.team && p.active !== false ? ` <span class="sched-note">· ${esc(p.team)}</span>` : ""}</span>
       <select class="gsel" onchange="setGender('${esc(p.name)}', this.value)">
