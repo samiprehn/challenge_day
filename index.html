@@ -242,7 +242,7 @@ function renderVote() {
   $("#voteBody").innerHTML = `
     <div style="font-weight:600; margin-bottom:8px">${esc(state.poll.question)}</div>
     <select id="who">
-      <option value="">Who are you?</option>
+      <option value="">Click to pick your name</option>
       ${state.players.filter(p => p.active !== false).map(p => {
         const taken = (state.claimed || []).includes(p.name) && p.name !== me;
         return `<option value="${esc(p.name)}" ${p.name === me ? "selected" : ""} ${taken ? "disabled" : ""}>${esc(p.name)}${taken ? " (taken)" : ""}</option>`;
