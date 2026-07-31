@@ -126,8 +126,8 @@ button.small { font-size: 13px; padding: 5px 10px; }
 
   <div id="app" style="display:none">
     <div class="tabs" id="tabs">
-      <button data-t="board" class="on">Board</button>
       <button data-t="sched">Design</button>
+      <button data-t="board" class="on">Players</button>
       <button data-t="pack">Run</button>
       <button data-t="run">Record</button>
       <button data-t="log">Log</button>
@@ -251,6 +251,8 @@ function render() {
 }
 
 /* ---------- board ---------- */
+let editingPlayers = false;
+function togglePlayerEdit() { editingPlayers = !editingPlayers; board(); }
 function board() {
   const t = totals();
   const hasTeams = state.players.some(p => p.team);
@@ -267,10 +269,14 @@ function board() {
       ${state.settings.coinMode ? `<button class="small" onclick="coinEdit('${esc(p.name)}')">🪙 edit</button>` : ""}
       ${state.claims && state.claims[p.name] ? `<button class="small" onclick="releaseName('${esc(p.name)}')" title="unlink from their phone">release</button>` : ""}
       <button class="small" onclick="toggleOut('${esc(p.name)}')">${p.active === false ? "revive" : "eliminate"}</button>
-      <button class="small danger" onclick="removePlayer('${esc(p.name)}')">✕</button>
+      ${editingPlayers ? `<button class="small danger" onclick="removePlayer('${esc(p.name)}')">✕</button>` : ""}
     </div>`).join("");
   $("#tabBody").innerHTML = `
-    <div class="card"><h2>Players</h2>
+    <div class="card">
+      <div class="inline" style="align-items:center">
+        <h2 style="margin:0">Players</h2>
+        <button class="small" style="flex:0 0 auto" onclick="togglePlayerEdit()">${editingPlayers ? "Done" : "Edit"}</button>
+      </div>
       ${rows || `<div class="sched-note">No players yet.</div>`}
       ${hasTeams ? `<button class="small danger" style="margin-top:10px" onclick="clearTeams()">Clear teams</button>` : ""}
       <div class="inline" style="margin-top:12px">
