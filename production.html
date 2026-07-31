@@ -278,13 +278,7 @@ function board() {
         <button class="primary" onclick="assignTeamGroup()">Assign</button>
       </div>
     </div>
-    <div class="card"><h2>Event</h2>
-      <div class="inline">
-        <button onclick="newEvent(true)">New event — keep players</button>
-        <button class="danger" onclick="newEvent(false)">New event — start fresh</button>
-      </div>
-      <div class="hint">Archives this event's results and clears the board${(state.past || []).length ? ` · ${(state.past).length} past event${state.past.length === 1 ? "" : "s"} archived` : ""}.</div>
-    </div>`;
+    `;
   $("#newPlayer").addEventListener("keydown", e => { if (e.key === "Enter") addPlayer(); });
 }
 function settingsPanelHtml() {
@@ -319,6 +313,14 @@ function settingsPanelHtml() {
         ? `<div class="hint">🪙 Men: ${coinPools().M}/${state.settings.coinCap} · Women: ${coinPools().W}/${state.settings.coinCap}</div>`
         : `<div class="hint">🪙 Coins in play: ${coinPools().total}/${state.settings.coinCap}</div>`) : ""}
       ` : ""}
+      <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--card-edge)">
+        <h2>Event</h2>
+        <div class="inline" style="margin-top:8px">
+          <button onclick="newEvent(true)">New event — keep players</button>
+          <button class="danger" onclick="newEvent(false)">New event — start fresh</button>
+        </div>
+        <div class="hint">Archives this event's results and clears the board${(state.past || []).length ? ` · ${(state.past).length} past event${state.past.length === 1 ? "" : "s"} archived` : ""}.</div>
+      </div>
     </div>
     <div class="controls"><button class="primary" onclick="bigHide()">Done</button></div>`;
 }
@@ -404,6 +406,7 @@ function newEvent(keepPlayers) {
   state.claims = {};
   delete state.timer;
   push();
+  bigHide();
 }
 function toggleOut(n) {
   const p = state.players.find(p => p.name === n);
