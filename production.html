@@ -406,7 +406,7 @@ function releaseName(n) {
 }
 function newEvent(keepPlayers) {
   if (!confirm(keepPlayers
-    ? "Start a new event? Results, schedule, coins, and teams are archived and cleared; players stay."
+    ? "Start a new event? Results/history, coins, and teams are archived and cleared; players and the schedule stay (marked un-done again)."
     : "Start a completely fresh event? Players, results, and schedule are archived and cleared.")) return;
   if (!confirm("Really sure? The board resets for everyone.")) return;
   (state.past = state.past || []).push({
@@ -416,7 +416,7 @@ function newEvent(keepPlayers) {
     ? state.players.map(p => ({ name: p.name, active: true, ...(p.gender ? { gender: p.gender } : {}) }))
     : [];
   state.log = [];
-  state.schedule = [];
+  state.schedule = keepPlayers ? state.schedule.map(s => ({ ...s, done: false })) : [];
   state.poll = null;
   state.claims = {};
   delete state.timer;
