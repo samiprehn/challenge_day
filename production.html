@@ -167,7 +167,7 @@ async function push() {
     body: JSON.stringify({ state }),
   }).then(r => r.json()).catch(() => ({ error: "network error" }));
   if (r.error) alert("Save failed: " + r.error);
-  else state = r.state; // server hands back the merged state (picks up any votes merged server-side) — no need for a follow-up read that could race a not-yet-propagated KV write
+  else { state = r.state; maybeAutoClosePoll(); } // server hands back the merged state (picks up any votes merged server-side) — no need for a follow-up read that could race a not-yet-propagated KV write
   render();
 }
 async function saveToken() {
@@ -195,7 +195,7 @@ setInterval(async () => {
   if ($("#big").classList.contains("show")) return;
   if (tab === "run") return; // don't wipe an in-progress challenge selection / winner-loser picks
   if (tab === "timer") return; // don't wipe the running timer's DOM/interval mid-count
-  try { const s = await pull(); if (!s.error) { state = s; render(); } } catch {}
+  try { const s = await pull(); if (!s.error) { state = s; maybeAutoClosePoll(); render(); } } catch {}
 }, 8000);
 
 /* ---------- helpers ---------- */
@@ -948,6 +948,13 @@ function closePoll() {
     id: state.poll.id, ts: Date.now(), question: state.poll.question, options: state.poll.options, votes: state.poll.votes || {},
   });
   push();
+}
+function maybeAutoClosePoll() {
+  const p = state.poll;
+  if (!p || !p.open) return;
+  const eligible = active().map(x => x.name);
+  const voted = Object.keys(p.votes || {});
+  if (eligible.length && eligible.every(n => voted.includes(n))) closePoll();
 }
 
 /* ---------- timer ---------- */
