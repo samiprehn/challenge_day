@@ -474,7 +474,6 @@ function run() {
       </select>
       ${upcoming.length ? "" : `<div class="hint">The schedule is empty — add challenges there first.</div>`}`}
       <div class="hint" id="schedRules" style="display:none"></div>
-      <div class="hint" id="schedGear" style="display:none"></div>
       <div class="inline">
         <div><label>Type</label>
           <select id="chType"><option value="daily">Daily</option><option value="elimination">Elimination</option><option value="final">Final</option></select></div>
@@ -505,9 +504,6 @@ function run() {
     const r = $("#schedRules");
     r.textContent = s && s.rules ? "📜 " + s.rules : "";
     r.style.display = s && s.rules ? "" : "none";
-    const g = $("#schedGear");
-    g.textContent = s && s.gear ? "🎒 " + s.gear : "";
-    g.style.display = s && s.gear ? "" : "none";
   };
   if (editing) {
     $("#chType").value = editing.type;
