@@ -118,10 +118,10 @@ button.small { font-size: 13px; padding: 5px 10px; }
       <button data-t="board" class="on">Board</button>
       <button data-t="sched">Schedule</button>
       <button data-t="pack">Packing</button>
+      <button data-t="log">Log</button>
       <button data-t="run">Challenge</button>
       <button data-t="draw">The Draw</button>
       <button data-t="vote">Vote</button>
-      <button data-t="log">Log</button>
       <button data-t="timer">Timer</button>
     </div>
     <div id="tabBody"></div>
@@ -699,11 +699,10 @@ function deleteVoteLog(id) {
 
 /* ---------- packing list ---------- */
 function pack() {
-  const packing = state.schedule.filter(s => !s.done &&
-    (s.gear || (s.note && s.note !== "from the archive")));
+  const packing = state.schedule.filter(s => s.gear || (s.note && s.note !== "from the archive"));
   $("#tabBody").innerHTML = `
     <div class="card"><h2>Packing list</h2>
-      <div class="hint" style="margin-bottom:6px">Gear + notes from every upcoming challenge — checkboxes are just for you, not saved.</div>
+      <div class="hint" style="margin-bottom:6px">Gear + notes from every challenge — checkboxes are just for you, not saved.</div>
       ${packing.length ? `<div class="checks" style="flex-direction:column; align-items:stretch">
         ${packing.map(s => `<label><input type="checkbox">${esc(s.name)} — ${esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; "))}</label>`).join("")}
       </div>` : `<div class="sched-note">Nothing yet — add gear or notes to schedule items (challenges added from the archive bring detected gear automatically).</div>`}
