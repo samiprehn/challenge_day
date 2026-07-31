@@ -259,7 +259,8 @@ function board() {
   const rows = [...state.players].sort((a, b) =>
     (a.active === false) - (b.active === false) || (a.team || "￿").localeCompare(b.team || "￿") || t[b.name] - t[a.name]).map(p => `
     <div class="row ${p.active === false ? "out" : ""}">
-      <span class="name">${esc(p.name)}${p.coins ? ` 🪙${p.coins > 1 ? "×" + p.coins : ""}` : ""}${p.team && p.active !== false ? ` <span class="sched-note">· ${esc(p.team)}</span>` : ""}</span>
+      <span class="name">${esc(p.name)}${!editingPlayers && p.coins ? ` 🪙${p.coins > 1 ? "×" + p.coins : ""}` : ""}${!editingPlayers && p.team && p.active !== false ? ` <span class="sched-note">· ${esc(p.team)}</span>` : ""}</span>
+      ${editingPlayers ? `<button class="small danger" onclick="removePlayer('${esc(p.name)}')">✕</button>` : `
       <select class="gsel" onchange="setGender('${esc(p.name)}', this.value)">
         <option value="">–</option>
         <option value="M" ${p.gender === "M" ? "selected" : ""}>M</option>
@@ -268,8 +269,7 @@ function board() {
       <span class="pts">${t[p.name] || 0}</span>
       ${state.settings.coinMode ? `<button class="small" onclick="coinEdit('${esc(p.name)}')">🪙 edit</button>` : ""}
       ${state.claims && state.claims[p.name] ? `<button class="small" onclick="releaseName('${esc(p.name)}')" title="unlink from their phone">release</button>` : ""}
-      <button class="small" onclick="toggleOut('${esc(p.name)}')">${p.active === false ? "revive" : "eliminate"}</button>
-      ${editingPlayers ? `<button class="small danger" onclick="removePlayer('${esc(p.name)}')">✕</button>` : ""}
+      <button class="small" onclick="toggleOut('${esc(p.name)}')">${p.active === false ? "revive" : "eliminate"}</button>`}
     </div>`).join("");
   $("#tabBody").innerHTML = `
     <div class="card">
@@ -733,7 +733,7 @@ function pack() {
       <div class="hint" style="margin-bottom:6px">Every challenge for the day, crossed off as it's recorded — gear and notes/rules shown where you added them.</div>
       ${state.schedule.length ? [...state.schedule].sort((a, b) => (a.done === true) - (b.done === true)).map(s => `
         <div class="row">
-          <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}"><span class="badge ${esc(s.type)}">${esc(s.type)}</span> ${esc(s.name)}${(s.gear || (s.note && s.note !== "from the archive")) ? " — " + esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; ")) : ""}</span>
+          <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}"><span class="badge ${esc(s.type)}">${esc(s.type)}</span> ${esc(s.name)}${s.format ? ` <span class="sched-note">· ${esc(s.format)}</span>` : ""}${(s.gear || (s.note && s.note !== "from the archive")) ? " — " + esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; ")) : ""}</span>
           ${s.rules ? `<button class="small" onclick="toggleRules('${esc(s.id)}')">notes ▸</button>` : ""}
         </div>
         ${s.rules ? `<div class="hint" id="rules-${esc(s.id)}" style="display:none; padding:4px 2px 10px">${esc(s.rules)}</div>` : ""}`).join("")
