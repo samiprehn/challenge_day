@@ -70,6 +70,11 @@ button.small { font-size: 13px; padding: 5px 10px; }
 .err { color: var(--red); font-weight: 600; }
 .tally .bar { height: 8px; background: var(--ember-deep); border-radius: 4px; margin-top: 3px; }
 .sched-note { color: var(--bone-dim); font-size: 13px; }
+.badge { font: 700 10px var(--sans); letter-spacing: .1em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; }
+.badge.daily { background: var(--ember); color: var(--night); }
+.badge.elimination { background: #e05c4a; color: var(--night); }
+.badge.final { background: #ffd700; color: var(--night); }
+.badge.fmt { background: none; border: 1px solid var(--card-edge); color: var(--bone-dim); }
 
 /* draw overlay + timer big screen */
 .big {
@@ -622,7 +627,7 @@ function sched() {
     <div class="row">
       <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}">
         <a href="${ARCHIVE}?q=${encodeURIComponent(s.name)}" target="_blank" rel="noopener" style="color:inherit">${esc(s.name || "(unnamed)")}</a>
-        <span class="sched-note">· ${esc(s.type)}${s.format ? " · " + esc(s.format) : ""}${s.note && s.note !== "from the archive" ? " · " + esc(s.note) : ""}</span>
+        <span class="sched-note">· <span class="badge ${esc(s.type)}">${esc(s.type)}</span>${s.format ? " · " + esc(s.format) : ""}${s.note && s.note !== "from the archive" ? " · " + esc(s.note) : ""}</span>
       </span>
       <button class="small" onclick="editSched('${esc(s.id)}')">✎</button>
       <button class="small" onclick="moveSched(${i},-1)">↑</button>
@@ -672,7 +677,7 @@ function log() {
     if (e.kind === "challenge") {
       const l = e.data;
       return `<div class="row">
-        <span class="name">🏆 ${esc(l.name)} <span class="sched-note">· ${esc(l.type)}${l.format ? " · " + esc(l.format) : ""} · ${esc(l.summary || "")}</span></span>
+        <span class="name">🏆 ${esc(l.name)} <span class="badge ${esc(l.type)}">${esc(l.type)}</span> <span class="sched-note">${l.format ? esc(l.format) + " · " : ""}${esc(l.summary || "")}</span></span>
         <button class="small" onclick="editLog('${esc(l.id)}')">✎ edit</button>
         <button class="small danger" onclick="deleteLog('${esc(l.id)}')">✕</button>
       </div>`;
@@ -722,7 +727,7 @@ function pack() {
       <div class="hint" style="margin-bottom:6px">Every challenge for the day, crossed off as it's recorded — gear and notes/rules shown where you added them.</div>
       ${state.schedule.length ? [...state.schedule].sort((a, b) => (a.done === true) - (b.done === true)).map(s => `
         <div class="row">
-          <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}">${esc(s.name)}${(s.gear || (s.note && s.note !== "from the archive")) ? " — " + esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; ")) : ""}</span>
+          <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}"><span class="badge ${esc(s.type)}">${esc(s.type)}</span> ${esc(s.name)}${(s.gear || (s.note && s.note !== "from the archive")) ? " — " + esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; ")) : ""}</span>
           ${s.rules ? `<button class="small" onclick="toggleRules('${esc(s.id)}')">notes ▸</button>` : ""}
         </div>
         ${s.rules ? `<div class="hint" id="rules-${esc(s.id)}" style="display:none; padding:4px 2px 10px">${esc(s.rules)}</div>` : ""}`).join("")
