@@ -275,6 +275,11 @@ function board() {
     </div>
     <div class="card"><h2>Settings</h2>
       <div class="checks"><label>
+        <input type="checkbox" id="hideDetails" ${state.settings.hideDetails ? "checked" : ""}>
+        Hide details from players
+      </label></div>
+      <div class="hint">On = participants only see the leaderboard, no "Results so far" feed.</div>
+      <div class="checks" style="margin-top:8px"><label>
         <input type="checkbox" id="elimMode" ${state.settings.eliminationMode ? "checked" : ""}>
         Real eliminations (losers are out of the game)
       </label></div>
@@ -306,6 +311,7 @@ function board() {
       </div>
       <div class="hint">Archives this event's results and clears the board${(state.past || []).length ? ` · ${(state.past).length} past event${state.past.length === 1 ? "" : "s"} archived` : ""}.</div>
     </div>`;
+  $("#hideDetails").onchange = e => { state.settings.hideDetails = e.target.checked; push(); };
   $("#elimMode").onchange = e => { state.settings.eliminationMode = e.target.checked; push(); };
   $("#coinMode").onchange = e => { state.settings.coinMode = e.target.checked; push(); };
   if ($("#coinCap")) $("#coinCap").onchange = e => {

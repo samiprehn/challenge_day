@@ -108,7 +108,7 @@ footer a { color: var(--ember); text-decoration: none; }
     <div id="board"><div class="empty">Waiting for the game to start…</div></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="feedCard">
     <h2>Results so far</h2>
     <div id="feed"><div class="empty">Nothing yet.</div></div>
   </div>
@@ -191,6 +191,7 @@ function render() {
   }
 
   // feed
+  $("#feedCard").style.display = state.settings && state.settings.hideDetails ? "none" : "";
   const log = [...(state.log || [])].reverse();
   $("#feed").innerHTML = log.length ? log.map(l => `
     <div class="feed-item">
