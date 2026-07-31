@@ -604,13 +604,11 @@ function sched() {
         <a href="${ARCHIVE}?q=${encodeURIComponent(s.name)}" target="_blank" rel="noopener" style="color:inherit">${esc(s.name || "(unnamed)")}</a>
         <span class="sched-note">· ${esc(s.type)}${s.format ? " · " + esc(s.format) : ""}${s.note && s.note !== "from the archive" ? " · " + esc(s.note) : ""}</span>
       </span>
-      ${s.rules ? `<button class="small" onclick="toggleRules(${i})">rules ▸</button>` : ""}
       <button class="small" onclick="editSched('${esc(s.id)}')">✎</button>
       <button class="small" onclick="moveSched(${i},-1)">↑</button>
       <button class="small" onclick="moveSched(${i},1)">↓</button>
       <button class="small danger" onclick="delSched(${i})">✕</button>
-    </div>
-    ${s.rules ? `<div class="hint" id="rules-${i}" style="display:none; padding:4px 2px 10px">${esc(s.rules)}</div>` : ""}`).join("");
+    </div>`).join("");
   $("#tabBody").innerHTML = `
     <div class="card"><h2>Run of show</h2>
       <div class="hint" style="margin-bottom:8px">Participants only ever see the type of the next un-done item — never the name.
@@ -703,13 +701,18 @@ function pack() {
   $("#tabBody").innerHTML = `
     <div class="card"><h2>Gear list</h2>
       <div class="hint" style="margin-bottom:6px">Gear + notes from every challenge — checkboxes are just for you, not saved.</div>
-      ${packing.length ? `<div class="checks" style="flex-direction:column; align-items:stretch">
-        ${packing.map(s => `<label><input type="checkbox">${esc(s.name)} — ${esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; "))}</label>`).join("")}
-      </div>` : `<div class="sched-note">Nothing yet — add gear or notes to schedule items (challenges added from the archive bring detected gear automatically).</div>`}
+      ${packing.length ? packing.map(s => `
+        <div class="row">
+          <input type="checkbox" style="width:auto">
+          <span class="name">${esc(s.name)} — ${esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; "))}</span>
+          ${s.rules ? `<button class="small" onclick="toggleRules('${esc(s.id)}')">rules ▸</button>` : ""}
+        </div>
+        ${s.rules ? `<div class="hint" id="rules-${esc(s.id)}" style="display:none; padding:4px 2px 10px">${esc(s.rules)}</div>` : ""}`).join("")
+        : `<div class="sched-note">Nothing yet — add gear or notes to schedule items (challenges added from the archive bring detected gear automatically).</div>`}
     </div>`;
 }
-function toggleRules(i) {
-  const el = $(`#rules-${i}`);
+function toggleRules(id) {
+  const el = $(`#rules-${id}`);
   el.style.display = el.style.display === "none" ? "" : "none";
 }
 function addSched() {
