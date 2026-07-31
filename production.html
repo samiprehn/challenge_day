@@ -507,7 +507,8 @@ function saveRun() {
   winners.forEach(w => points[w] = pts);
   const teamMatch = Object.entries(teams()).find(([, m]) =>
     m.length === winners.length && m.every(n => winners.includes(n)));
-  let summary = `Won by ${teamMatch ? `${teamMatch[0]} (${winners.join(", ")})` : winners.join(" & ")} (+${pts} each)`;
+  const teamLabel = teamMatch && (teamMatch[1].length > 2 ? `${teamMatch[0]} (${winners.join(", ")})` : teamMatch[0]);
+  let summary = `Won by ${teamLabel || winners.join(" & ")} (+${pts} each)`;
   if (losers.length) summary += ` — ${losers.join(" & ")} eliminated`;
   if (editingEntry) {
     Object.assign(editingEntry, { name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
