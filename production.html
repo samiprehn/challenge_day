@@ -121,6 +121,7 @@ button.small { font-size: 13px; padding: 5px 10px; }
       <button data-t="run">Challenge</button>
       <button data-t="draw">The Draw</button>
       <button data-t="vote">Vote</button>
+      <button data-t="log">Log</button>
       <button data-t="timer">Timer</button>
     </div>
     <div id="tabBody"></div>
@@ -233,7 +234,7 @@ $("#tabs").addEventListener("click", e => {
 
 function render() {
   if (!state) return;
-  ({ board, run, sched, pack, draw, vote, timer })[tab]();
+  ({ board, run, sched, pack, draw, vote, log, timer })[tab]();
 }
 
 /* ---------- board ---------- */
@@ -350,6 +351,7 @@ function assignTeamGroup() {
   const oldTeams = new Set(members.map(n => { const p = state.players.find(p => p.name === n); return p && p.team; }).filter(Boolean));
   members.forEach(n => { const p = state.players.find(p => p.name === n); if (p) p.team = label; });
   oldTeams.forEach(clearSingletonTeam);
+  (state.teamHistory = state.teamHistory || []).push({ id: uid(), ts: Date.now(), team: label, members });
   push();
 }
 function coinEdit(n) {
@@ -588,12 +590,6 @@ function sched() {
       <button class="small danger" onclick="delSched(${i})">✕</button>
     </div>
     ${s.rules ? `<div class="hint" id="rules-${i}" style="display:none; padding:4px 2px 10px">${esc(s.rules)}</div>` : ""}`).join("");
-  const past = [...state.log].reverse().map(l => `
-    <div class="row">
-      <span class="name">${esc(l.name)} <span class="sched-note">· ${esc(l.type)} · ${esc(l.summary || "")}</span></span>
-      <button class="small" onclick="editLog('${esc(l.id)}')">✎ edit</button>
-      <button class="small danger" onclick="deleteLog('${esc(l.id)}')">✕</button>
-    </div>`).join("");
   $("#tabBody").innerHTML = `
     <div class="card"><h2>Run of show</h2>
       <div class="hint" style="margin-bottom:8px">Participants only ever see the type of the next un-done item — never the name.
@@ -618,9 +614,6 @@ function sched() {
         <button class="primary" style="flex:1" onclick="addSched()">${editing ? "Save changes" : "Add"}</button>
         ${editing ? `<button onclick="editSchedId=null; sched()">Cancel</button>` : ""}
       </div>
-    </div>
-    <div class="card"><h2>Results so far</h2>
-      ${past || `<div class="sched-note">Nothing recorded yet.</div>`}
     </div>`;
   if (editing) {
     $("#sType").value = editing.type;
@@ -628,6 +621,60 @@ function sched() {
   }
 }
 function editSched(id) { editSchedId = id; sched(); window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }); }
+
+/* ---------- log ---------- */
+function log() {
+  const entries = [
+    ...state.log.map(l => ({ kind: "challenge", ts: l.ts, data: l })),
+    ...(state.voteHistory || []).map(v => ({ kind: "vote", ts: v.ts, data: v })),
+    ...(state.teamHistory || []).map(t => ({ kind: "team", ts: t.ts, data: t })),
+  ].sort((a, b) => b.ts - a.ts);
+  const rows = entries.map(e => {
+    if (e.kind === "challenge") {
+      const l = e.data;
+      return `<div class="row">
+        <span class="name">🏆 ${esc(l.name)} <span class="sched-note">· ${esc(l.type)} · ${esc(l.summary || "")}</span></span>
+        <button class="small" onclick="editLog('${esc(l.id)}')">✎ edit</button>
+        <button class="small danger" onclick="deleteLog('${esc(l.id)}')">✕</button>
+      </div>`;
+    }
+    if (e.kind === "team") {
+      const t = e.data;
+      return `<div class="row">
+        <span class="name">🤝 ${esc(t.team)} <span class="sched-note">· ${t.members.map(esc).join(", ")}</span></span>
+        <button class="small danger" onclick="deleteTeamLog('${esc(t.id)}')">✕</button>
+      </div>`;
+    }
+    const v = e.data;
+    const tally = {}, votersByOption = {};
+    Object.entries(v.votes || {}).forEach(([voter, c]) => { tally[c] = (tally[c] || 0) + 1; (votersByOption[c] = votersByOption[c] || []).push(voter); });
+    const lines = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+    return `<div class="row" style="flex-direction:column; align-items:stretch">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <span class="name">🗳️ ${esc(v.question)}</span>
+        <button class="small danger" onclick="deleteVoteLog('${esc(v.id)}')">✕</button>
+      </div>
+      ${lines.map(([o, n]) => `<div style="margin-top:4px">
+        <div style="display:flex; justify-content:space-between"><span>${esc(o)}</span><b style="color:var(--ember)">${n}</b></div>
+        <div class="sched-note">${esc((votersByOption[o] || []).join(", "))}</div>
+      </div>`).join("") || '<div class="sched-note">No votes were cast.</div>'}
+    </div>`;
+  }).join("");
+  $("#tabBody").innerHTML = `
+    <div class="card"><h2>Log</h2>
+      ${rows || `<div class="sched-note">Nothing recorded yet.</div>`}
+    </div>`;
+}
+function deleteTeamLog(id) {
+  if (!confirm("Delete this team assignment from the log?")) return;
+  state.teamHistory = (state.teamHistory || []).filter(t => t.id !== id);
+  push();
+}
+function deleteVoteLog(id) {
+  if (!confirm("Delete this vote from the log?")) return;
+  state.voteHistory = (state.voteHistory || []).filter(v => v.id !== id);
+  push();
+}
 
 /* ---------- packing list ---------- */
 function pack() {
@@ -825,7 +872,13 @@ function openPoll() {
   state.poll = { id: uid(), open: true, question: q, options: opts, votes: {} };
   push();
 }
-function closePoll() { state.poll.open = false; push(); }
+function closePoll() {
+  state.poll.open = false;
+  (state.voteHistory = state.voteHistory || []).push({
+    id: state.poll.id, ts: Date.now(), question: state.poll.question, options: state.poll.options, votes: state.poll.votes || {},
+  });
+  push();
+}
 
 /* ---------- timer ---------- */
 let tInt = null;
