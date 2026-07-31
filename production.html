@@ -975,8 +975,18 @@ function timer() {
     </div>`;
   tPaint();
   $("#tGo").onclick = () => {
+    if (!tRunning) {
+      // only re-read the minutes box on a fresh start, not when resuming a paused countdown
+      const fresh = tCountdown ? tRemaining === Math.round(tMins * 60) : tElapsed === 0;
+      if (fresh) {
+        tMins = +$("#tMin").value || 0;
+        tCountdown = tMins > 0;
+        tRemaining = Math.round(tMins * 60);
+      }
+    }
     tRunning = !tRunning;
     $("#tGo").textContent = tRunning ? "Pause" : "Start";
+    tPaint();
     tShare();
   };
   $("#tReset").onclick = () => {
