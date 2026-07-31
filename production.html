@@ -473,7 +473,6 @@ function run() {
         ${upcoming.map(s => `<option value="${esc(s.id)}">${esc(s.name)} (${esc(s.type)})</option>`).join("")}
       </select>
       ${upcoming.length ? "" : `<div class="hint">The schedule is empty — add challenges there first.</div>`}`}
-      <div class="hint" id="schedRules" style="display:none"></div>
       <div class="inline">
         <div><label>Type</label>
           <select id="chType"><option value="daily">Daily</option><option value="elimination">Elimination</option><option value="final">Final</option></select></div>
@@ -501,9 +500,6 @@ function run() {
       if (s.format) $("#chFmt").value = s.format;
       renderElimExtra();
     }
-    const r = $("#schedRules");
-    r.textContent = s && s.rules ? "📜 " + s.rules : "";
-    r.style.display = s && s.rules ? "" : "none";
   };
   if (editing) {
     $("#chType").value = editing.type;
