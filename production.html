@@ -602,7 +602,7 @@ function sched() {
     <div class="row">
       <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}">
         <a href="${ARCHIVE}?q=${encodeURIComponent(s.name)}" target="_blank" rel="noopener" style="color:inherit">${esc(s.name || "(unnamed)")}</a>
-        <span class="sched-note">· ${esc(s.type)}${s.format ? " · " + esc(s.format) : ""}${s.gear ? " · 🎒 " + esc(s.gear) : ""}${s.note && s.note !== "from the archive" ? " · " + esc(s.note) : ""}</span>
+        <span class="sched-note">· ${esc(s.type)}${s.format ? " · " + esc(s.format) : ""}${s.note && s.note !== "from the archive" ? " · " + esc(s.note) : ""}</span>
       </span>
       ${s.rules ? `<button class="small" onclick="toggleRules(${i})">rules ▸</button>` : ""}
       <button class="small" onclick="editSched('${esc(s.id)}')">✎</button>
