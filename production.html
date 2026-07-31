@@ -433,7 +433,8 @@ function run() {
       ${checklist("win", names)}
       <div id="elimExtra"></div>
       <button class="primary" style="width:100%; margin-top:14px" onclick="saveRun()">${editing ? "Update result" : "Save result"}</button>
-      ${editing ? `<button style="width:100%; margin-top:8px" onclick="editLogId=null; run()">Cancel edit</button>` : ""}
+      ${editing ? `<button style="width:100%; margin-top:8px" onclick="editLogId=null; run()">Cancel edit</button>
+      <button class="danger" style="width:100%; margin-top:8px" onclick="undoRun('${esc(editing.id)}')">Undo this result</button>` : ""}
       <div id="runMsg" style="margin-top:8px"></div>
     </div>`;
   $("#chType").onchange = renderElimExtra;
@@ -470,6 +471,17 @@ function deleteLog(id) {
   if (!confirm(`Delete "${l.name}"? Its points come off the board.`)) return;
   state.log = state.log.filter(l => l.id !== id);
   push();
+}
+function undoRun(id) {
+  const l = state.log.find(l => l.id === id);
+  if (!l) return;
+  if (!confirm(`Undo this result for "${l.name}"? It'll be removed from the log and the schedule item goes back to un-recorded.`)) return;
+  state.log = state.log.filter(x => x.id !== id);
+  const sched = state.schedule.find(s => s.name === l.name);
+  if (sched) sched.done = false;
+  editLogId = null;
+  push();
+  $("#tabs [data-t=board]").click();
 }
 function renderElimExtra() {
   const type = $("#chType").value;
