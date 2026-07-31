@@ -336,8 +336,30 @@ function settingsPanelHtml() {
         </div>
         <div class="hint">Archives this event's results and clears the board${(state.past || []).length ? ` · ${(state.past).length} past event${state.past.length === 1 ? "" : "s"} archived` : ""}.</div>
       </div>
+      ${(state.past || []).length ? `<div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--card-edge)">
+        <h2>Past events</h2>
+        ${[...state.past].reverse().map((ev, i) => {
+          const realIdx = state.past.length - 1 - i;
+          return `<div class="row">
+            <span class="name">${new Date(ev.ts).toLocaleString()} <span class="sched-note">· ${ev.players.length} players · ${ev.log.length} results · ${ev.schedule.length} challenges</span></span>
+            <button class="small" onclick="restoreSchedule(${realIdx})">Restore schedule</button>
+          </div>`;
+        }).join("")}
+        <div class="hint">Copies that event's challenges back into the current schedule (marked un-done). Duplicates aren't detected — remove any you don't want on the Design tab.</div>
+      </div>` : ""}
     </div>
     <div class="controls"><button class="primary" onclick="bigHide()">Done</button></div>`;
+}
+function restoreSchedule(pastIndex) {
+  const ev = (state.past || [])[pastIndex];
+  if (!ev) return;
+  if (!confirm(`Restore ${ev.schedule.length} challenge(s) from this past event back into the current schedule?`)) return;
+  const restored = ev.schedule.map(s => ({ ...s, id: uid(), done: false }));
+  const finalIdx = state.schedule.findIndex(s => s.type === "final");
+  if (finalIdx === -1) state.schedule.push(...restored);
+  else state.schedule.splice(finalIdx, 0, ...restored);
+  openSettings();
+  push();
 }
 function openSettings() {
   if (!state) return;
