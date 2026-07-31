@@ -470,6 +470,8 @@ function deleteLog(id) {
   const l = state.log.find(l => l.id === id);
   if (!confirm(`Delete "${l.name}"? Its points come off the board.`)) return;
   state.log = state.log.filter(l => l.id !== id);
+  const sched = state.schedule.find(s => s.name === l.name);
+  if (sched) sched.done = false;
   push();
 }
 function undoRun(id) {
@@ -603,6 +605,7 @@ function sched() {
         <span class="sched-note">· ${esc(s.type)}${s.format ? " · " + esc(s.format) : ""}${s.gear ? " · 🎒 " + esc(s.gear) : ""}${s.note && s.note !== "from the archive" ? " · " + esc(s.note) : ""}</span>
       </span>
       ${s.rules ? `<button class="small" onclick="toggleRules(${i})">rules ▸</button>` : ""}
+      <button class="small" onclick="toggleSchedDone('${esc(s.id)}')">${s.done ? "mark not done" : "mark done"}</button>
       <button class="small" onclick="editSched('${esc(s.id)}')">✎</button>
       <button class="small" onclick="moveSched(${i},-1)">↑</button>
       <button class="small" onclick="moveSched(${i},1)">↓</button>
@@ -740,6 +743,11 @@ function moveSched(i, d) {
   const j = i + d;
   if (j < 0 || j >= state.schedule.length) return;
   [state.schedule[i], state.schedule[j]] = [state.schedule[j], state.schedule[i]];
+  push();
+}
+function toggleSchedDone(id) {
+  const s = state.schedule.find(s => s.id === id);
+  if (s) s.done = !s.done;
   push();
 }
 function delSched(i) {
