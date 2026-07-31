@@ -122,8 +122,8 @@ button.small { font-size: 13px; padding: 5px 10px; }
       <button data-t="board" class="on">Board</button>
       <button data-t="sched">Design</button>
       <button data-t="pack">Run</button>
+      <button data-t="run">Record</button>
       <button data-t="log">Log</button>
-      <button data-t="run">Challenge</button>
       <button data-t="draw">Draw</button>
       <button data-t="vote">Vote</button>
       <button data-t="timer">Timer</button>
@@ -627,7 +627,7 @@ function sched() {
       <button class="small danger" onclick="delSched(${i})">✕</button>
     </div>`).join("");
   $("#tabBody").innerHTML = `
-    <div class="card"><h2>Run of show</h2>
+    <div class="card"><h2>Game Design</h2>
       <div class="hint" style="margin-bottom:8px">Participants only ever see the type of the next un-done item — never the name.
         Need ideas? <a href="${ARCHIVE}" target="_blank" rel="noopener">Browse the archive</a> and hit the “local” chip — you can add straight to this schedule from there.</div>
       ${items || `<div class="sched-note">Nothing planned yet.</div>`}
@@ -717,7 +717,7 @@ function pack() {
   $("#tabBody").innerHTML = `
     <div class="card"><h2>Run of show</h2>
       <div class="hint" style="margin-bottom:6px">Every challenge for the day, crossed off as it's recorded — gear/notes shown where you added them.</div>
-      ${state.schedule.length ? state.schedule.map(s => `
+      ${state.schedule.length ? [...state.schedule].sort((a, b) => (a.done === true) - (b.done === true)).map(s => `
         <div class="row">
           <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}">${esc(s.name)}${(s.gear || (s.note && s.note !== "from the archive")) ? " — " + esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; ")) : ""}</span>
           ${s.rules ? `<button class="small" onclick="toggleRules('${esc(s.id)}')">rules ▸</button>` : ""}
