@@ -938,7 +938,7 @@ function closePoll() {
 /* ---------- timer ---------- */
 // state lives at module level (not inside timer()) so re-rendering the tab —
 // e.g. after closing the Settings overlay — doesn't reset a running timer
-let tInt = null, tMins = 3, tRemaining = null, tElapsed = 0, tRunning = false, tCountdown = false;
+let tInt = null, tMins = 15, tRemaining = null, tElapsed = 0, tRunning = false, tCountdown = false;
 const tFmt = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 function tPaint() {
   const d = $("#tDig");
