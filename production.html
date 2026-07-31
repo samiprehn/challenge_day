@@ -716,10 +716,9 @@ function deleteVoteLog(id) {
 function pack() {
   $("#tabBody").innerHTML = `
     <div class="card"><h2>Run of show</h2>
-      <div class="hint" style="margin-bottom:6px">Every challenge for the day, crossed off as it's recorded — gear/notes shown where you added them. Checkboxes are just for you, not saved.</div>
+      <div class="hint" style="margin-bottom:6px">Every challenge for the day, crossed off as it's recorded — gear/notes shown where you added them.</div>
       ${state.schedule.length ? state.schedule.map(s => `
         <div class="row">
-          <input type="checkbox" style="width:auto">
           <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}">${esc(s.name)}${(s.gear || (s.note && s.note !== "from the archive")) ? " — " + esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; ")) : ""}</span>
           ${s.rules ? `<button class="small" onclick="toggleRules('${esc(s.id)}')">rules ▸</button>` : ""}
         </div>
