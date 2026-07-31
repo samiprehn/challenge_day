@@ -117,7 +117,7 @@ button.small { font-size: 13px; padding: 5px 10px; }
     <div class="tabs" id="tabs">
       <button data-t="board" class="on">Board</button>
       <button data-t="sched">Schedule</button>
-      <button data-t="pack">Gear</button>
+      <button data-t="pack">Run</button>
       <button data-t="log">Log</button>
       <button data-t="run">Challenge</button>
       <button data-t="draw">The Draw</button>
@@ -695,20 +695,19 @@ function deleteVoteLog(id) {
   push();
 }
 
-/* ---------- packing list ---------- */
+/* ---------- run-the-day overview ---------- */
 function pack() {
-  const packing = state.schedule.filter(s => s.gear || (s.note && s.note !== "from the archive"));
   $("#tabBody").innerHTML = `
-    <div class="card"><h2>Gear list</h2>
-      <div class="hint" style="margin-bottom:6px">Gear + notes from every challenge — checkboxes are just for you, not saved.</div>
-      ${packing.length ? packing.map(s => `
+    <div class="card"><h2>Run of show</h2>
+      <div class="hint" style="margin-bottom:6px">Every challenge for the day, crossed off as it's recorded — gear/notes shown where you added them. Checkboxes are just for you, not saved.</div>
+      ${state.schedule.length ? state.schedule.map(s => `
         <div class="row">
           <input type="checkbox" style="width:auto">
-          <span class="name">${esc(s.name)} — ${esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; "))}</span>
+          <span class="name" style="${s.done ? "opacity:.4; text-decoration:line-through" : ""}">${esc(s.name)}${(s.gear || (s.note && s.note !== "from the archive")) ? " — " + esc([s.gear, s.note !== "from the archive" ? s.note : ""].filter(Boolean).join("; ")) : ""}</span>
           ${s.rules ? `<button class="small" onclick="toggleRules('${esc(s.id)}')">rules ▸</button>` : ""}
         </div>
         ${s.rules ? `<div class="hint" id="rules-${esc(s.id)}" style="display:none; padding:4px 2px 10px">${esc(s.rules)}</div>` : ""}`).join("")
-        : `<div class="sched-note">Nothing yet — add gear or notes to schedule items (challenges added from the archive bring detected gear automatically).</div>`}
+        : `<div class="sched-note">Nothing on the schedule yet — add challenges on the Schedule tab first.</div>`}
     </div>`;
 }
 function toggleRules(id) {
