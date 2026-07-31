@@ -707,8 +707,11 @@ function addSched() {
   };
   const editing = state.schedule.find(s => s.id === editSchedId);
   if (editing) {
+    const oldName = editing.name;
     Object.assign(editing, fields);
     editSchedId = null;
+    // keep already-recorded results in sync with corrected schedule metadata
+    state.log.filter(l => l.name === oldName).forEach(l => { l.type = fields.type; l.format = fields.format; });
   } else {
     const item = { id: uid(), done: false, ...fields };
     // keep the final at the end
