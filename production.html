@@ -639,7 +639,7 @@ function log() {
     if (e.kind === "challenge") {
       const l = e.data;
       return `<div class="row">
-        <span class="name">🏆 ${esc(l.name)} <span class="sched-note">· ${esc(l.type)} · ${esc(l.summary || "")}</span></span>
+        <span class="name">🏆 ${esc(l.name)} <span class="sched-note">· ${esc(l.type)}${l.format ? " · " + esc(l.format) : ""} · ${esc(l.summary || "")}</span></span>
         <button class="small" onclick="editLog('${esc(l.id)}')">✎ edit</button>
         <button class="small danger" onclick="deleteLog('${esc(l.id)}')">✕</button>
       </div>`;
