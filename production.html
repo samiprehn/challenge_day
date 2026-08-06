@@ -514,6 +514,7 @@ function run() {
           <select id="chFmt"><option>Individual</option><option>Pairs</option><option>Teams</option></select></div>
         <div><label>Points each</label><input id="chPts" type="number" value="1"></div>
       </div>
+      <div id="poolExtra"></div>
       <label>Winner(s) — tap a team flag to select the whole team</label>
       ${teamButtons("win")}
       ${checklist("win", names, null, dimNames)}
@@ -574,11 +575,8 @@ function renderElimExtra() {
     const poolNames = eliminationPoolNames();
     const loseDim = poolNames.size ? loseNames.filter(n => !poolNames.has(n)) : [];
     const poolOptions = [...Object.keys(teams()).map(t => ({ v: t, label: "🚩 " + t })), ...active().map(p => ({ v: p.name, label: p.name }))];
-    $("#elimExtra").innerHTML = `
-      ${state.settings.coinMode ? `<div class="hint" style="margin-top:8px">🪙 Coin mode: the winner(s) earn a coin${
-        state.settings.coinCap ? ` — capped at ${state.settings.coinCap}${state.settings.coinCapByGender ? " per gender" : ""}; once full, winners steal from a loser instead` : ""
-      } automatically.</div>` : ""}
-      <label style="margin-top:8px">Elimination pool <span class="sched-note">(dims everyone else in the checklists above/below)</span></label>
+    $("#poolExtra").innerHTML = `
+      <label style="margin-top:8px">Elimination pool <span class="sched-note">(dims everyone else in the checklists below)</span></label>
       <div class="inline">
         <select id="poolAdd"><option value="">— add a team or player —</option>
           ${poolOptions.map(o => `<option value="${esc(o.v)}">${esc(o.label)}</option>`).join("")}
@@ -586,15 +584,21 @@ function renderElimExtra() {
         <button class="small" onclick="addToEliminationPool()">Add</button>
       </div>
       ${(state.eliminationPool || []).length ? `<div class="hint" style="margin-top:4px">In the pool: ${esc(state.eliminationPool.join(", "))}
-        <button class="small danger" onclick="clearEliminationPool()">Clear</button></div>` : ""}
+        <button class="small danger" onclick="clearEliminationPool()">Clear</button></div>` : ""}`;
+    $("#elimExtra").innerHTML = `
+      ${state.settings.coinMode ? `<div class="hint" style="margin-top:8px">🪙 Coin mode: the winner(s) earn a coin${
+        state.settings.coinCap ? ` — capped at ${state.settings.coinCap}${state.settings.coinCapByGender ? " per gender" : ""}; once full, winners steal from a loser instead` : ""
+      } automatically.</div>` : ""}
       <label style="margin-top:10px">Eliminated / loser ${state.settings.eliminationMode ? "(will be marked out)" : "(for the story — stays in)"}</label>
       ${teamButtons("lose")}
       ${checklist("lose", loseNames, null, loseDim)}`;
   } else if (type === "final" && state.settings.coinMode) {
+    $("#poolExtra").innerHTML = "";
     const eligible = active().filter(p => p.coins > 0).map(p => p.name);
     $("#elimExtra").innerHTML = `<div class="hint" style="margin-top:8px">
       🪙 Final-eligible (has a coin): ${eligible.length ? esc(eligible.join(", ")) : "nobody yet!"}</div>`;
   } else {
+    $("#poolExtra").innerHTML = "";
     $("#elimExtra").innerHTML = "";
   }
 }
