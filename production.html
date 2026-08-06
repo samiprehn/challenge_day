@@ -332,9 +332,10 @@ function settingsPanelHtml() {
       ` : ""}
       <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--card-edge)">
         <h2>Event</h2>
-        <div class="inline" style="margin-top:8px">
-          <button onclick="newEvent(true)">New event — keep players</button>
-          <button class="danger" onclick="newEvent(false)">New event — start fresh</button>
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px">
+          <button onclick="newEvent('both')">Restart event — keep challenges and players</button>
+          <button onclick="newEvent('challenges')">Restart event — keep challenges</button>
+          <button class="danger" onclick="newEvent('none')">New event — clear everything</button>
         </div>
         <div class="hint">Archives this event's results and clears the board${(state.past || []).length ? ` · ${(state.past).length} past event${state.past.length === 1 ? "" : "s"} archived` : ""}.</div>
       </div>
@@ -428,10 +429,15 @@ function releaseName(n) {
   delete state.claims[n];
   push();
 }
-function newEvent(keepPlayers) {
-  if (!confirm(keepPlayers
-    ? "Start a new event? Results/history, coins, and teams are archived and cleared; players and the schedule stay (marked un-done again)."
-    : "Start a completely fresh event? Players, results, and schedule are archived and cleared.")) return;
+function newEvent(mode) {
+  const keepPlayers = mode === "both";
+  const keepSchedule = mode === "both" || mode === "challenges";
+  const prompts = {
+    both: "Restart the event? Results/history, coins, and teams are archived and cleared; players and challenges stay (marked un-done again).",
+    challenges: "Restart the event? Results/history, coins, teams, and players are archived and cleared; the challenges stay (marked un-done again).",
+    none: "Start a completely new event? Players, results, and challenges are all archived and cleared.",
+  };
+  if (!confirm(prompts[mode])) return;
   if (!confirm("Really sure? The board resets for everyone.")) return;
   (state.past = state.past || []).push({
     ts: Date.now(), players: state.players, log: state.log, schedule: state.schedule,
@@ -440,7 +446,7 @@ function newEvent(keepPlayers) {
     ? state.players.map(p => ({ name: p.name, active: true, ...(p.gender ? { gender: p.gender } : {}) }))
     : [];
   state.log = [];
-  state.schedule = keepPlayers ? state.schedule.map(s => ({ ...s, done: false })) : [];
+  state.schedule = keepSchedule ? state.schedule.map(s => ({ ...s, done: false })) : [];
   state.poll = null;
   state.claims = {};
   delete state.timer;
