@@ -350,6 +350,7 @@ function settingsPanelHtml() {
           return `<div class="row">
             <span class="name">${new Date(ev.ts).toLocaleString()} <span class="sched-note">· ${ev.players.length} players · ${ev.log.length} results · ${ev.schedule.length} challenges</span></span>
             <button class="small" onclick="restoreSchedule(${realIdx})">Restore schedule</button>
+            <button class="small danger" onclick="deletePastEvent(${realIdx})">✕</button>
           </div>`;
         }).join("")}
         <div class="hint">Copies that event's challenges back into the current schedule (marked un-done). Duplicates aren't detected — remove any you don't want on the Design tab.</div>
@@ -365,6 +366,14 @@ function restoreSchedule(pastIndex) {
   const finalIdx = state.schedule.findIndex(s => s.type === "final");
   if (finalIdx === -1) state.schedule.push(...restored);
   else state.schedule.splice(finalIdx, 0, ...restored);
+  openSettings();
+  push();
+}
+function deletePastEvent(pastIndex) {
+  const ev = (state.past || [])[pastIndex];
+  if (!ev) return;
+  if (!confirm(`Delete the archived event from ${new Date(ev.ts).toLocaleString()}? This can't be undone.`)) return;
+  state.past.splice(pastIndex, 1);
   openSettings();
   push();
 }
