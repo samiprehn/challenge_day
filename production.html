@@ -60,6 +60,7 @@ button.small { font-size: 13px; padding: 5px 10px; }
 .checks label:has(input:checked) { border-color: var(--ember); color: var(--ember); background: rgba(255,140,43,.08); }
 .checks input { width: auto; accent-color: var(--ember-deep); }
 .assign-opt.dim, .assign-opt.same-gender { opacity: .4; }
+.checks label.dim { opacity: .4; }
 .row select.gsel { width: auto; padding: 4px 6px; font-size: 13px; flex: 0 0 auto; }
 .inline { display: flex; gap: 8px; align-items: end; }
 .inline > * { flex: 1; }
@@ -217,8 +218,8 @@ function coinPools() {
   state.players.forEach(p => { pools.total += (p.coins || 0); if (pools[p.gender] !== undefined) pools[p.gender] += (p.coins || 0); });
   return pools;
 }
-const checklist = (id, names, precheck) => `<div class="checks">${names.map(n =>
-  `<label><input type="checkbox" data-cl="${id}" value="${esc(n)}" ${precheck && precheck.includes(n) ? "checked" : ""}>${esc(n)}</label>`).join("")}</div>`;
+const checklist = (id, names, precheck, dimNames) => `<div class="checks">${names.map(n =>
+  `<label class="${dimNames && dimNames.includes(n) ? "dim" : ""}"><input type="checkbox" data-cl="${id}" value="${esc(n)}" ${precheck && precheck.includes(n) ? "checked" : ""}>${esc(n)}</label>`).join("")}</div>`;
 const checked = id => [...document.querySelectorAll(`input[data-cl="${id}"]:checked`)].map(i => i.value);
 const teams = () => {
   const g = {};
@@ -230,6 +231,16 @@ function clearSingletonTeam(team) {
   if (!team) return;
   const remaining = active().filter(p => p.team === team);
   if (remaining.length === 1) delete remaining[0].team;
+}
+// expands elimination-pool entries (team labels or player names) into a flat set of player names
+function eliminationPoolNames() {
+  const g = teams();
+  const names = new Set();
+  (state.eliminationPool || []).forEach(entry => {
+    if (g[entry]) g[entry].forEach(n => names.add(n));
+    else names.add(entry);
+  });
+  return names;
 }
 // one-tap team buttons that check/uncheck a whole team in a checklist
 const teamButtons = id => {
@@ -486,6 +497,8 @@ function run() {
   const names = active().sort((a, b) => (a.team || "￿").localeCompare(b.team || "￿")).map(p => p.name);
   const upcoming = state.schedule.filter(s => !s.done);
   const editing = state.log.find(l => l.id === editLogId);
+  const poolNames = eliminationPoolNames();
+  const dimNames = poolNames.size ? names.filter(n => !poolNames.has(n)) : [];
   $("#tabBody").innerHTML = `
     <div class="card"><h2>${editing ? `Editing: ${esc(editing.name)}` : "Record a challenge"}</h2>
       ${editing ? "" : `<label>Challenge (from the schedule)</label>
@@ -503,7 +516,7 @@ function run() {
       </div>
       <label>Winner(s) — tap a team flag to select the whole team</label>
       ${teamButtons("win")}
-      ${checklist("win", names)}
+      ${checklist("win", names, null, dimNames)}
       <div id="elimExtra"></div>
       <button class="primary" style="width:100%; margin-top:14px" onclick="saveRun()">${editing ? "Update result" : "Save result"}</button>
       ${editing ? `<button style="width:100%; margin-top:8px" onclick="editLogId=null; run()">Cancel edit</button>
@@ -511,17 +524,19 @@ function run() {
       <div id="runMsg" style="margin-top:8px"></div>
     </div>`;
   $("#chType").onchange = renderElimExtra;
-  runSchedId = null;
   const sel = $("#chSched");
-  if (sel) sel.onchange = () => {
-    const s = state.schedule.find(x => x.id === sel.value);
-    runSchedId = s ? s.id : null;
-    if (s) {
-      $("#chType").value = s.type;
-      if (s.format) $("#chFmt").value = s.format;
+  const applySched = s => { if (s) { $("#chType").value = s.type; if (s.format) $("#chFmt").value = s.format; } };
+  if (sel) {
+    // restore the previously picked challenge across re-renders (e.g. after adding to the elimination pool)
+    const restored = upcoming.find(s => s.id === runSchedId);
+    if (restored) { sel.value = restored.id; applySched(restored); } else runSchedId = null;
+    sel.onchange = () => {
+      const s = state.schedule.find(x => x.id === sel.value);
+      runSchedId = s ? s.id : null;
+      applySched(s);
       renderElimExtra();
-    }
-  };
+    };
+  }
   if (editing) {
     $("#chType").value = editing.type;
     $("#chFmt").value = editing.format || "Individual";
@@ -555,13 +570,26 @@ function undoRun(id) {
 function renderElimExtra() {
   const type = $("#chType").value;
   if (type === "elimination") {
+    const loseNames = active().sort((a, b) => (a.team || "￿").localeCompare(b.team || "￿")).map(p => p.name);
+    const poolNames = eliminationPoolNames();
+    const loseDim = poolNames.size ? loseNames.filter(n => !poolNames.has(n)) : [];
+    const poolOptions = [...Object.keys(teams()).map(t => ({ v: t, label: "🚩 " + t })), ...active().map(p => ({ v: p.name, label: p.name }))];
     $("#elimExtra").innerHTML = `
       ${state.settings.coinMode ? `<div class="hint" style="margin-top:8px">🪙 Coin mode: the winner(s) earn a coin${
         state.settings.coinCap ? ` — capped at ${state.settings.coinCap}${state.settings.coinCapByGender ? " per gender" : ""}; once full, winners steal from a loser instead` : ""
       } automatically.</div>` : ""}
-      <label>Eliminated / loser ${state.settings.eliminationMode ? "(will be marked out)" : "(for the story — stays in)"}</label>
+      <label style="margin-top:8px">Elimination pool <span class="sched-note">(dims everyone else in the checklists above/below)</span></label>
+      <div class="inline">
+        <select id="poolAdd"><option value="">— add a team or player —</option>
+          ${poolOptions.map(o => `<option value="${esc(o.v)}">${esc(o.label)}</option>`).join("")}
+        </select>
+        <button class="small" onclick="addToEliminationPool()">Add</button>
+      </div>
+      ${(state.eliminationPool || []).length ? `<div class="hint" style="margin-top:4px">In the pool: ${esc(state.eliminationPool.join(", "))}
+        <button class="small danger" onclick="clearEliminationPool()">Clear</button></div>` : ""}
+      <label style="margin-top:10px">Eliminated / loser ${state.settings.eliminationMode ? "(will be marked out)" : "(for the story — stays in)"}</label>
       ${teamButtons("lose")}
-      ${checklist("lose", active().sort((a, b) => (a.team || "￿").localeCompare(b.team || "￿")).map(p => p.name))}`;
+      ${checklist("lose", loseNames, null, loseDim)}`;
   } else if (type === "final" && state.settings.coinMode) {
     const eligible = active().filter(p => p.coins > 0).map(p => p.name);
     $("#elimExtra").innerHTML = `<div class="hint" style="margin-top:8px">
@@ -569,6 +597,17 @@ function renderElimExtra() {
   } else {
     $("#elimExtra").innerHTML = "";
   }
+}
+function addToEliminationPool() {
+  const v = $("#poolAdd").value;
+  if (!v) return;
+  state.eliminationPool = state.eliminationPool || [];
+  if (!state.eliminationPool.includes(v)) state.eliminationPool.push(v);
+  push();
+}
+function clearEliminationPool() {
+  state.eliminationPool = [];
+  push();
 }
 function saveRun() {
   const editingEntry = state.log.find(l => l.id === editLogId);
@@ -609,6 +648,7 @@ function saveRun() {
     eliminatedTeams.forEach(clearSingletonTeam);
   }
   if (schedItem) schedItem.done = true;
+  if ($("#chType").value === "elimination") state.eliminationPool = [];
   push();
   if ($("#chType").value === "final") return celebrate(winners);
   $("#tabs [data-t=board]").click();
@@ -968,6 +1008,13 @@ function closePoll() {
   (state.voteHistory = state.voteHistory || []).push({
     id: state.poll.id, ts: Date.now(), question: state.poll.question, options: state.poll.options, votes: state.poll.votes || {},
   });
+  if (state.poll.question === "Who should go into elimination?") {
+    const tally = {};
+    Object.values(state.poll.votes || {}).forEach(c => tally[c] = (tally[c] || 0) + 1);
+    const lines = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+    // only auto-add on a clear, untied top result
+    if (lines.length && (lines.length === 1 || lines[0][1] > lines[1][1])) state.eliminationPool = [lines[0][0]];
+  }
   push();
 }
 function maybeAutoClosePoll() {
