@@ -298,7 +298,7 @@ function board() {
   $("#newPlayer").addEventListener("keydown", e => { if (e.key === "Enter") addPlayer(); });
 }
 function settingsPanelHtml() {
-  return `<div class="headline">Settings</div>
+  return `<div style="font-family:var(--serif); font-weight:400; font-size:clamp(26px,6vw,36px); margin-bottom:18px; color:var(--bone)">Settings</div>
     <div style="text-align:left; width:100%; max-width:420px">
       <div class="checks"><label>
         <input type="checkbox" id="hideDetails" ${state.settings.hideDetails ? "checked" : ""}>
