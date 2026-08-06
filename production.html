@@ -602,7 +602,10 @@ function addToEliminationPool() {
   const v = $("#poolAdd").value;
   if (!v) return;
   state.eliminationPool = state.eliminationPool || [];
-  if (!state.eliminationPool.includes(v)) state.eliminationPool.push(v);
+  if (!state.eliminationPool.includes(v)) {
+    state.eliminationPool.push(v);
+    (state.poolLog = state.poolLog || []).push({ id: uid(), ts: Date.now(), entry: v });
+  }
   push();
 }
 function clearEliminationPool() {
@@ -754,6 +757,7 @@ function log() {
     ...state.log.map(l => ({ kind: "challenge", ts: l.ts, data: l })),
     ...(state.voteHistory || []).map(v => ({ kind: "vote", ts: v.ts, data: v })),
     ...(state.teamHistory || []).map(t => ({ kind: "team", ts: t.ts, data: t })),
+    ...(state.poolLog || []).map(p => ({ kind: "pool", ts: p.ts, data: p })),
   ].sort((a, b) => b.ts - a.ts);
   const rows = entries.map(e => {
     if (e.kind === "challenge") {
@@ -769,6 +773,13 @@ function log() {
       return `<div class="row">
         <span class="name">🤝 ${esc(t.team)} <span class="sched-note">· ${t.members.map(esc).join(", ")}</span></span>
         <button class="small danger" onclick="deleteTeamLog('${esc(t.id)}')">✕</button>
+      </div>`;
+    }
+    if (e.kind === "pool") {
+      const p = e.data;
+      return `<div class="row">
+        <span class="name">🔥 ${esc(p.entry)} added to the elimination pool</span>
+        <button class="small danger" onclick="deletePoolLog('${esc(p.id)}')">✕</button>
       </div>`;
     }
     const v = e.data;
@@ -794,6 +805,10 @@ function log() {
 function deleteTeamLog(id) {
   if (!confirm("Delete this team assignment from the log?")) return;
   state.teamHistory = (state.teamHistory || []).filter(t => t.id !== id);
+  push();
+}
+function deletePoolLog(id) {
+  state.poolLog = (state.poolLog || []).filter(p => p.id !== id);
   push();
 }
 function deleteVoteLog(id) {
