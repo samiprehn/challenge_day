@@ -182,12 +182,21 @@ function render() {
   } else {
     const players = [...state.players].sort((a, b) =>
       (b.active !== false) - (a.active !== false) || t[b.name] - t[a.name] || a.name.localeCompare(b.name));
-    $("#board").innerHTML = players.length ? players.map((p, i) => `
+    let prevPts = null, prevRank = 0;
+    $("#board").innerHTML = players.length ? players.map((p, i) => {
+      let rank = "–";
+      if (p.active !== false) {
+        const pts = t[p.name] || 0;
+        if (prevPts === null || pts !== prevPts) { prevRank = i + 1; prevPts = pts; }
+        rank = prevRank;
+      }
+      return `
       <div class="row ${p.active === false ? "out" : ""}">
-        <span class="rank">${p.active === false ? "–" : i + 1}</span>
+        <span class="rank">${rank}</span>
         <span class="name">${esc(p.name)}${coinStr(p)}</span>
         <span class="pts">${t[p.name] || 0}</span>
-      </div>`).join("") : `<div class="empty">Waiting for the game to start…</div>`;
+      </div>`;
+    }).join("") : `<div class="empty">Waiting for the game to start…</div>`;
   }
 
   // feed
