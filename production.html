@@ -80,8 +80,11 @@ button.small { font-size: 13px; padding: 5px 10px; }
 .big {
   position: fixed; inset: 0; background: var(--night); z-index: 50;
   display: none; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; padding: 20px;
-  overflow-y: auto;
+  overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--card-edge) transparent;
 }
+.big::-webkit-scrollbar { width: 8px; }
+.big::-webkit-scrollbar-track { background: transparent; }
+.big::-webkit-scrollbar-thumb { background: var(--card-edge); border-radius: 4px; }
 .big::before, .big::after { content: ""; flex: 1 0 auto; min-height: 20px; }
 .big.show { display: flex; }
 .big .headline { font: 600 16px var(--sans); letter-spacing: .3em; text-transform: uppercase; color: var(--ember); margin-bottom: 18px; }
