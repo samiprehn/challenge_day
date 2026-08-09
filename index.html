@@ -125,6 +125,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 let state = null;
 let pickedChoice = null;
+let votedPollId = null; // survives a background refresh that hasn't caught up to our own vote yet
 let DEVICE = localStorage.getItem("cd_device");
 if (!DEVICE) {
   DEVICE = Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -254,7 +255,7 @@ function renderVote() {
   if (!state.poll) { card.style.display = "none"; return; }
   card.style.display = "";
   const me = localStorage.getItem("cd_me") || "";
-  if (me && state.poll.voted.includes(me)) {
+  if (me && (state.poll.voted.includes(me) || votedPollId === state.poll.id)) {
     $("#voteBody").innerHTML = `<div class="done-msg">Vote in, ${esc(me)} ✓</div>`;
     return;
   }
@@ -280,13 +281,31 @@ function renderVote() {
     const voter = $("#who").value;
     if (!voter) return $("#voteErr").textContent = "Pick your name first.";
     if (!pickedChoice) return $("#voteErr").textContent = "Pick an option.";
+    const btn = $("#send");
+    if (btn.disabled) return; // ignore double-taps while a submission is already in flight
+    btn.disabled = true;
+    btn.textContent = "Submitting…";
+    $("#voteErr").textContent = "";
     localStorage.setItem("cd_me", voter);
     const r = await fetch(WORKER + "/vote", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ voter, choice: pickedChoice, device: DEVICE }),
     }).then(r => r.json()).catch(() => ({ error: "network error" }));
-    if (r.error) $("#voteErr").textContent = r.error;
-    else { pickedChoice = null; refresh(); }
+    if (r.error) {
+      $("#voteErr").textContent = r.error;
+      btn.disabled = false;
+      btn.textContent = "Submit vote";
+      return;
+    }
+    pickedChoice = null;
+    // show success immediately from the response we just got, and remember it durably —
+    // a follow-up /state read (right now, or on the next background refresh) could still
+    // return a stale, pre-write snapshot (KV writes/lists aren't instantly consistent),
+    // which used to make a successful vote look like it silently failed and prompt people
+    // to keep tapping Submit, or could even flip a shown "Vote in ✓" back to the form
+    if (state.poll) { state.poll.voted = [...new Set([...(state.poll.voted || []), voter])]; votedPollId = state.poll.id; }
+    render();
+    refresh(); // pick up the real state in the background once it's propagated
   };
 }
 

@@ -143,6 +143,7 @@ button.small { font-size: 13px; padding: 5px 10px; }
       <button data-t="vote">Vote</button>
       <button data-t="timer">Timer</button>
     </div>
+    <div class="err" id="crashBanner" style="display:none; margin-bottom:10px; padding:10px; border:1px solid var(--red); border-radius:8px"></div>
     <div id="tabBody"></div>
   </div>
 
@@ -162,6 +163,18 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
 const uid = () => Date.now() + "-" + Math.floor(Math.random() * 1e6);
 let state = null, tab = "board", token = localStorage.getItem("cd_token") || "";
+let pushSeq = 0; // guards against an old, slow /update response clobbering newer local state
+
+// coerce anything we load into shapes every render function can safely iterate — a bad
+// write (stale tab, network hiccup mid-save) should never wedge every tab that reads it
+function sanitizeState(s) {
+  if (!s || typeof s !== "object") return s;
+  s.players = Array.isArray(s.players) ? s.players : [];
+  s.schedule = Array.isArray(s.schedule) ? s.schedule : [];
+  s.log = Array.isArray(s.log) ? s.log : [];
+  s.settings = s.settings && typeof s.settings === "object" ? s.settings : {};
+  return s;
+}
 
 /* ---------- sync ---------- */
 async function pull() {
@@ -169,12 +182,17 @@ async function pull() {
   return r.json();
 }
 async function push() {
+  const mySeq = ++pushSeq;
   const r = await fetch(WORKER + "/update", {
     method: "POST", headers: { "Content-Type": "application/json", "X-Token": token },
     body: JSON.stringify({ state }),
   }).then(r => r.json()).catch(() => ({ error: "network error" }));
-  if (r.error) alert("Save failed: " + r.error);
-  else { state = r.state; maybeAutoClosePoll(); } // server hands back the merged state (picks up any votes merged server-side) — no need for a follow-up read that could race a not-yet-propagated KV write
+  if (r.error) { alert("Save failed: " + r.error); render(); return; }
+  // if a newer push has been issued since this one started, this response is stale —
+  // applying it would silently revert whatever that newer push already saved
+  if (mySeq !== pushSeq) return;
+  state = sanitizeState(r.state); // server hands back the exact state we just wrote — no follow-up read that could race a not-yet-propagated KV write
+  maybeAutoClosePoll();
   render();
 }
 async function saveToken() {
@@ -190,6 +208,7 @@ async function boot() {
   try {
     state = await pull();
     if (state.error) throw 0;
+    sanitizeState(state);
   } catch { $("#gate").style.display = ""; $("#app").style.display = "none"; return; }
   $("#gate").style.display = "none";
   $("#app").style.display = "";
@@ -202,7 +221,7 @@ setInterval(async () => {
   if ($("#big").classList.contains("show")) return;
   if (tab === "run") return; // don't wipe an in-progress challenge selection / winner-loser picks
   if (tab === "timer") return; // don't wipe the running timer's DOM/interval mid-count
-  try { const s = await pull(); if (!s.error) { state = s; maybeAutoClosePoll(); render(); } } catch {}
+  try { const s = await pull(); if (!s.error) { state = sanitizeState(s); maybeAutoClosePoll(); render(); } } catch {}
 }, 8000);
 
 /* ---------- helpers ---------- */
@@ -265,7 +284,16 @@ $("#tabs").addEventListener("click", e => {
 
 function render() {
   if (!state) return;
-  ({ board, run, sched, pack, draw, vote, log, timer })[tab]();
+  try {
+    $("#crashBanner").style.display = "none";
+    ({ board, run, sched, pack, draw, vote, log, timer })[tab]();
+  } catch (e) {
+    // surface the error on-screen instead of leaving a silently dead tab — makes a future
+    // occurrence immediately diagnosable instead of a mystery freeze
+    console.error(e);
+    $("#crashBanner").style.display = "";
+    $("#crashBanner").textContent = `Something broke rendering this tab: ${e.message}. Try another tab, or Design/Players usually still work — screenshot this and send it over.`;
+  }
 }
 
 /* ---------- board ---------- */
@@ -286,7 +314,7 @@ function board() {
       </select>
       <span class="pts">${t[p.name] || 0}</span>
       ${state.settings.coinMode ? `<button class="small" onclick="coinEdit('${esc(p.name)}')">🪙 edit</button>` : ""}
-      ${state.claims && state.claims[p.name] ? `<button class="small" onclick="releaseName('${esc(p.name)}')" title="unlink from their phone">release</button>` : ""}
+      ${state.poll && state.poll.open && state.poll.votes && state.poll.votes[p.name] != null ? `<button class="small" onclick="releaseName('${esc(p.name)}')" title="let them vote again this round, e.g. from a different phone">release vote</button>` : ""}
       <button class="small" onclick="toggleOut('${esc(p.name)}')">${p.active === false ? "revive" : "eliminate"}</button>`}
     </div>`).join("");
   $("#tabBody").innerHTML = `
@@ -449,9 +477,13 @@ function coinEdit(n) {
   p.coins = coins;
   push();
 }
-function releaseName(n) {
-  delete state.claims[n];
-  push();
+async function releaseName(n) {
+  await fetch(WORKER + "/release", {
+    method: "POST", headers: { "Content-Type": "application/json", "X-Token": token },
+    body: JSON.stringify({ name: n }),
+  }).catch(() => {});
+  if (state.poll && state.poll.votes) delete state.poll.votes[n];
+  render();
 }
 function newEvent(mode) {
   const keepPlayers = mode === "both";
@@ -472,7 +504,6 @@ function newEvent(mode) {
   state.log = [];
   state.schedule = keepSchedule ? state.schedule.map(s => ({ ...s, done: false })) : [];
   state.poll = null;
-  state.claims = {};
   delete state.timer;
   push();
   bigHide();
@@ -1022,7 +1053,11 @@ function openPoll() {
   state.poll = { id: uid(), open: true, question: q, options: opts, votes: {} };
   push();
 }
-function closePoll() {
+async function closePoll() {
+  // grab the freshest votes right before closing, so a vote that landed in the last few
+  // seconds (since our last periodic pull) isn't missed by the snapshot below
+  const fresh = await pull().catch(() => null);
+  if (fresh && !fresh.error && fresh.poll && state.poll && fresh.poll.id === state.poll.id) state.poll.votes = fresh.poll.votes;
   state.poll.open = false;
   (state.voteHistory = state.voteHistory || []).push({
     id: state.poll.id, ts: Date.now(), question: state.poll.question, options: state.poll.options, votes: state.poll.votes || {},
