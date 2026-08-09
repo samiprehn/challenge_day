@@ -186,7 +186,10 @@ async function pull() {
   const r = await fetch(WORKER + "/state", { headers: { "X-Token": token } });
   return r.json();
 }
-async function push() {
+// silent=true for automatic background saves (vote consolidation, auto-close): they must
+// never pop an alert at a user who didn't do anything — a failed one just retries on the
+// next refresh cycle anyway
+async function push(silent) {
   const mySeq = ++pushSeq;
   const r = await fetch(WORKER + "/update", {
     method: "POST", headers: { "Content-Type": "application/json", "X-Token": token },
@@ -196,10 +199,10 @@ async function push() {
     // another tab/device saved a newer version — adopt it instead of silently reverting it
     if (r.state) state = sanitizeState(r.state);
     render();
-    alert("Another tab or device saved newer changes — the latest data has been loaded. Please redo your last action.");
+    if (!silent) alert("Another tab or device saved newer changes — the latest data has been loaded. Please redo your last action.");
     return;
   }
-  if (r.error) { alert("Save failed: " + r.error); render(); return; }
+  if (r.error) { if (!silent) alert("Save failed: " + r.error); render(); return; }
   // if a newer push has been issued since this one started, this response is stale —
   // applying it would silently revert whatever that newer push already saved
   if (mySeq !== pushSeq) return;
@@ -251,7 +254,7 @@ setInterval(async () => {
       // persist freshly-arrived votes into the blob so participants' "already voted" list
       // stays current — the worker can't afford to reconstruct votes on every participant
       // read (free-tier KV budget), so production consolidates them on its own refresh
-      if (votesDirty && state.poll && state.poll.open && !pollClosing) push();
+      if (votesDirty && state.poll && state.poll.open && !pollClosing) push(true);
       else render();
     }
   } catch {}
@@ -1105,7 +1108,7 @@ function openPoll() {
   push();
 }
 let pollClosing = false; // one close at a time — the auto-close check fires every 8s AND after every save, and the manual Close button exists too; without this a slow close could run twice and double-archive the vote
-async function closePoll() {
+async function closePoll(auto) {
   if (pollClosing || !state.poll || !state.poll.open) return;
   pollClosing = true;
   try {
@@ -1125,7 +1128,7 @@ async function closePoll() {
       // only auto-add on a clear, untied top result
       if (lines.length && (lines.length === 1 || lines[0][1] > lines[1][1])) state.eliminationPool = [lines[0][0]];
     }
-    await push();
+    await push(auto);
   } finally { pollClosing = false; }
 }
 function maybeAutoClosePoll() {
@@ -1134,7 +1137,7 @@ function maybeAutoClosePoll() {
   if (!p || !p.open) return;
   const eligible = active().map(x => x.name);
   const voted = Object.keys(p.votes || {});
-  if (eligible.length && eligible.every(n => voted.includes(n))) closePoll();
+  if (eligible.length && eligible.every(n => voted.includes(n))) closePoll(true);
 }
 
 /* ---------- timer ---------- */
