@@ -169,6 +169,11 @@ let pushSeq = 0; // guards against an old, slow /update response clobbering newe
 // write (stale tab, network hiccup mid-save) should never wedge every tab that reads it
 function sanitizeState(s) {
   if (!s || typeof s !== "object") return s;
+  // participant-view-only fields — never belong in production state (leftovers of the
+  // 2026-08-08 corruption may still be in storage; this scrubs them out on the next save)
+  delete s.nextType;
+  delete s.claimed;
+  delete s.pollVotesDirty;
   s.players = Array.isArray(s.players) ? s.players : [];
   s.schedule = Array.isArray(s.schedule) ? s.schedule : [];
   s.log = Array.isArray(s.log) ? s.log : [];
@@ -185,8 +190,15 @@ async function push() {
   const mySeq = ++pushSeq;
   const r = await fetch(WORKER + "/update", {
     method: "POST", headers: { "Content-Type": "application/json", "X-Token": token },
-    body: JSON.stringify({ state }),
+    body: JSON.stringify({ state, baseRev: state.rev }),
   }).then(r => r.json()).catch(() => ({ error: "network error" }));
+  if (r.error === "conflict") {
+    // another tab/device saved a newer version — adopt it instead of silently reverting it
+    if (r.state) state = sanitizeState(r.state);
+    render();
+    alert("Another tab or device saved newer changes — the latest data has been loaded. Please redo your last action.");
+    return;
+  }
   if (r.error) { alert("Save failed: " + r.error); render(); return; }
   // if a newer push has been issued since this one started, this response is stale —
   // applying it would silently revert whatever that newer push already saved
@@ -230,7 +242,19 @@ setInterval(async () => {
   if ($("#big").classList.contains("show")) return;
   if (tab === "run") return; // don't wipe an in-progress challenge selection / winner-loser picks
   if (tab === "timer") return; // don't wipe the running timer's DOM/interval mid-count
-  try { const s = await pull(); if (!s.error && Array.isArray(s.schedule)) { state = sanitizeState(s); maybeAutoClosePoll(); render(); } } catch {}
+  try {
+    const s = await pull();
+    if (!s.error && Array.isArray(s.schedule)) {
+      const votesDirty = s.pollVotesDirty;
+      state = sanitizeState(s);
+      maybeAutoClosePoll();
+      // persist freshly-arrived votes into the blob so participants' "already voted" list
+      // stays current — the worker can't afford to reconstruct votes on every participant
+      // read (free-tier KV budget), so production consolidates them on its own refresh
+      if (votesDirty && state.poll && state.poll.open && !pollClosing) push();
+      else render();
+    }
+  } catch {}
 }, 8000);
 
 /* ---------- helpers ---------- */
@@ -291,17 +315,28 @@ $("#tabs").addEventListener("click", e => {
   render();
 });
 
+// surface errors on-screen instead of leaving a silently dead tab — makes a future
+// occurrence immediately diagnosable instead of a mystery freeze. Sticky until dismissed:
+// the 8s background refresh re-renders constantly and must not wipe the message away
+// before it's been read.
+function showCrash(msg) {
+  const b = $("#crashBanner");
+  if (!b) return;
+  b.style.display = "";
+  b.innerHTML = `${esc(`Something broke: ${msg}. Try another tab — and screenshot this and send it over.`)}
+    <button class="small" style="margin-left:8px" onclick="this.parentElement.style.display='none'">dismiss</button>`;
+}
+// catch errors from button handlers and stray promises too, not just tab rendering
+window.addEventListener("error", e => showCrash(e.message));
+window.addEventListener("unhandledrejection", e => showCrash((e.reason && e.reason.message) || String(e.reason)));
+
 function render() {
   if (!state) return;
   try {
-    $("#crashBanner").style.display = "none";
     ({ board, run, sched, pack, draw, vote, log, timer })[tab]();
   } catch (e) {
-    // surface the error on-screen instead of leaving a silently dead tab — makes a future
-    // occurrence immediately diagnosable instead of a mystery freeze
     console.error(e);
-    $("#crashBanner").style.display = "";
-    $("#crashBanner").textContent = `Something broke rendering this tab: ${e.message}. Try another tab, or Design/Players usually still work — screenshot this and send it over.`;
+    showCrash(e.message);
   }
 }
 
@@ -492,7 +527,7 @@ async function releaseName(n) {
     body: JSON.stringify({ name: n }),
   }).catch(() => {});
   if (state.poll && state.poll.votes) delete state.poll.votes[n];
-  render();
+  push(); // persist so the participant-facing "already voted" list frees the name promptly
 }
 function newEvent(mode) {
   const keepPlayers = mode === "both";
@@ -506,6 +541,7 @@ function newEvent(mode) {
   if (!confirm("Really sure? The board resets for everyone.")) return;
   (state.past = state.past || []).push({
     ts: Date.now(), players: state.players, log: state.log, schedule: state.schedule,
+    voteHistory: state.voteHistory || [], teamHistory: state.teamHistory || [], poolLog: state.poolLog || [],
   });
   state.players = keepPlayers
     ? state.players.map(p => ({ name: p.name, active: true, ...(p.gender ? { gender: p.gender } : {}) }))
@@ -513,6 +549,10 @@ function newEvent(mode) {
   state.log = [];
   state.schedule = keepSchedule ? state.schedule.map(s => ({ ...s, done: false })) : [];
   state.poll = null;
+  state.voteHistory = [];
+  state.teamHistory = [];
+  state.poolLog = [];
+  state.eliminationPool = [];
   delete state.timer;
   push();
   bigHide();
@@ -593,7 +633,8 @@ function deleteLog(id) {
   const l = state.log.find(l => l.id === id);
   if (!confirm(`Delete "${l.name}"? Its points come off the board.`)) return;
   state.log = state.log.filter(l => l.id !== id);
-  const sched = state.schedule.find(s => s.name === l.name);
+  // match by stored schedule id when available; name is the fallback for old entries
+  const sched = state.schedule.find(s => (l.schedId ? s.id === l.schedId : s.name === l.name));
   if (sched) sched.done = false;
   push();
 }
@@ -602,7 +643,7 @@ function undoRun(id) {
   if (!l) return;
   if (!confirm(`Undo this result for "${l.name}"? It'll be removed from the log and the schedule item goes back to un-recorded.`)) return;
   state.log = state.log.filter(x => x.id !== id);
-  const sched = state.schedule.find(s => s.name === l.name);
+  const sched = state.schedule.find(s => (l.schedId ? s.id === l.schedId : s.name === l.name));
   if (sched) sched.done = false;
   editLogId = null;
   push();
@@ -688,7 +729,7 @@ function saveRun() {
     const notes = applyCoinAward(winners, losers);
     if (notes.length) summary += ` — ${notes.join("; ")}`;
   }
-  state.log.push({ id: uid(), ts: Date.now(), name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
+  state.log.push({ id: uid(), schedId: runSchedId || null, ts: Date.now(), name, type: $("#chType").value, format: $("#chFmt").value, points, summary });
   if (state.settings.eliminationMode) {
     const eliminatedTeams = new Set();
     losers.forEach(n => { const p = state.players.find(p => p.name === n); if (p) { eliminatedTeams.add(p.team); p.active = false; delete p.team; } });
@@ -1063,25 +1104,32 @@ function openPoll() {
   state.poll = { id: uid(), open: true, question: q, options: opts, votes: {} };
   push();
 }
+let pollClosing = false; // one close at a time — the auto-close check fires every 8s AND after every save, and the manual Close button exists too; without this a slow close could run twice and double-archive the vote
 async function closePoll() {
-  // grab the freshest votes right before closing, so a vote that landed in the last few
-  // seconds (since our last periodic pull) isn't missed by the snapshot below
-  const fresh = await pull().catch(() => null);
-  if (fresh && !fresh.error && fresh.poll && state.poll && fresh.poll.id === state.poll.id) state.poll.votes = fresh.poll.votes;
-  state.poll.open = false;
-  (state.voteHistory = state.voteHistory || []).push({
-    id: state.poll.id, ts: Date.now(), question: state.poll.question, options: state.poll.options, votes: state.poll.votes || {},
-  });
-  if (state.poll.question === "Who should go into elimination?") {
-    const tally = {};
-    Object.values(state.poll.votes || {}).forEach(c => tally[c] = (tally[c] || 0) + 1);
-    const lines = Object.entries(tally).sort((a, b) => b[1] - a[1]);
-    // only auto-add on a clear, untied top result
-    if (lines.length && (lines.length === 1 || lines[0][1] > lines[1][1])) state.eliminationPool = [lines[0][0]];
-  }
-  push();
+  if (pollClosing || !state.poll || !state.poll.open) return;
+  pollClosing = true;
+  try {
+    // adopt the freshest state right before closing, so a vote that landed in the last few
+    // seconds isn't missed, and so our save is based on the newest revision
+    const fresh = await pull().catch(() => null);
+    if (fresh && !fresh.error && Array.isArray(fresh.schedule)) state = sanitizeState(fresh);
+    if (!state.poll || !state.poll.open) { render(); return; } // already closed elsewhere
+    state.poll.open = false;
+    (state.voteHistory = state.voteHistory || []).push({
+      id: state.poll.id, ts: Date.now(), question: state.poll.question, options: state.poll.options, votes: state.poll.votes || {},
+    });
+    if (state.poll.question === "Who should go into elimination?") {
+      const tally = {};
+      Object.values(state.poll.votes || {}).forEach(c => tally[c] = (tally[c] || 0) + 1);
+      const lines = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+      // only auto-add on a clear, untied top result
+      if (lines.length && (lines.length === 1 || lines[0][1] > lines[1][1])) state.eliminationPool = [lines[0][0]];
+    }
+    await push();
+  } finally { pollClosing = false; }
 }
 function maybeAutoClosePoll() {
+  if (pollClosing) return;
   const p = state.poll;
   if (!p || !p.open) return;
   const eligible = active().map(x => x.name);
