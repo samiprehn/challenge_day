@@ -736,12 +736,13 @@ function celebrate(winners) {
 /* ---------- schedule ---------- */
 let editSchedId = null;
 function sched() {
-  // every Challenge ends with a final — keep one on the books
-  if (!state.schedule.some(s => s.type === "final")) {
+  // every Challenge ends with a final — keep one on the books, for display only. This used
+  // to immediately push() the addition to the server, which meant a schedule that only
+  // *looked* empty for a moment (a slow pull, a brief blip right after a deploy) would get
+  // permanently overwritten with just this placeholder the instant someone opened this tab.
+  // Now it only ever gets persisted alongside a real, explicit edit (add/edit/move/delete).
+  if (!state.schedule.some(s => s.type === "final"))
     state.schedule.push({ id: uid(), name: "Final Challenge", type: "final", note: "", done: false });
-    push();
-    return; // push() re-renders
-  }
   const editing = state.schedule.find(s => s.id === editSchedId);
   const items = state.schedule.map((s, i) => `
     <div class="row">
