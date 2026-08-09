@@ -260,6 +260,7 @@ function renderVote() {
     return;
   }
   $("#voteBody").innerHTML = `
+    <div style="font-weight:600; margin-bottom:6px">Who are you?</div>
     <select id="who">
       <option value="">Click to pick your name</option>
       ${state.players.filter(p => p.active !== false).map(p => {
