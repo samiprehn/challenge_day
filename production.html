@@ -1060,6 +1060,18 @@ function vote() {
           <div class="bar" style="width:${(tally[o] / max) * 100}%"></div>
           ${votersByOption[o].length ? `<div class="sched-note" style="margin-top:3px">${esc(votersByOption[o].join(", "))}</div>` : ""}</div>`).join("")}
       </div>
+      <label style="margin-top:14px">Cast a vote for someone <span class="sched-note">(no phone / phone broke — they can still override it from their own phone)</span></label>
+      <div class="inline">
+        <select id="proxyWho">
+          <option value="">— player —</option>
+          ${active().filter(x => (p.votes || {})[x.name] == null).map(x => `<option value="${esc(x.name)}">${esc(x.name)}</option>`).join("")}
+        </select>
+        <select id="proxyChoice">
+          <option value="">— option —</option>
+          ${p.options.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join("")}
+        </select>
+        <button class="small" onclick="proxyVote()">Cast</button>
+      </div>
       <button class="danger" style="width:100%; margin-top:10px" onclick="closePoll()">Close voting</button>`;
   } else {
     const lastLog = [...state.log].reverse()[0];
@@ -1099,6 +1111,22 @@ function renderClosedPoll(p) {
       <div class="sched-note">${esc((votersByOption[o] || []).join(", "))}</div>
     </div>`).join("") || '<div class="sched-note">No votes were cast.</div>'}
     </div>`;
+}
+async function proxyVote() {
+  const voter = $("#proxyWho").value, choice = $("#proxyChoice").value;
+  if (!voter || !choice) return alert("Pick a player and an option.");
+  // goes through the real /vote path (with the production token, no device) so it lands in
+  // the same per-voter storage as a phone vote — but without claiming the name, so the
+  // person can still vote from their own phone later and take it over
+  const r = await fetch(WORKER + "/vote", {
+    method: "POST", headers: { "Content-Type": "application/json", "X-Token": token },
+    body: JSON.stringify({ voter, choice }),
+  }).then(r => r.json()).catch(() => ({ error: "network error" }));
+  if (r.error) return alert("Couldn't cast the vote: " + r.error);
+  state.poll.votes = state.poll.votes || {};
+  state.poll.votes[voter] = choice;
+  maybeAutoClosePoll(); // if this was the last missing vote, close as usual
+  if (!pollClosing) push(true); else render();
 }
 function openPoll() {
   const q = $("#pq").value === "other" ? $("#pqOther").value.trim() : $("#pq").value;

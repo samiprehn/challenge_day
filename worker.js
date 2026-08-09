@@ -125,8 +125,11 @@ export default {
       if (!state.poll.options.includes(choice)) return json({ error: "invalid choice" }, 400);
       const key = voteKey(state.poll.id, voter);
       // first phone to vote as a name this round claims it — but only for this round;
-      // a new poll means a new key, so nobody is ever locked out across rounds
-      if (device) {
+      // a new poll means a new key, so nobody is ever locked out across rounds.
+      // Production (valid token) bypasses the claim so it can cast/override a vote for
+      // someone whose phone is dead or broken; a production-cast vote stores no device,
+      // so the person can still vote themselves later and take it over.
+      if (!isProd) {
         const existingRaw = await env.STATE.get(key);
         if (existingRaw) {
           const existing = JSON.parse(existingRaw);
@@ -134,7 +137,7 @@ export default {
             return json({ error: `${voter} already voted this round from a different device — ask production to release it` }, 403);
         }
       }
-      await env.STATE.put(key, JSON.stringify({ choice, device: device || null, ts: Date.now() }));
+      await env.STATE.put(key, JSON.stringify({ choice, device: (!isProd && device) || null, ts: Date.now() }));
       return json({ ok: true });
     }
 
