@@ -196,10 +196,16 @@ async function push() {
   render();
 }
 async function saveToken() {
-  token = $("#tokenIn").value.trim();
+  const entered = $("#tokenIn").value.trim();
+  if (!entered) { $("#gateErr").textContent = "Enter the production token."; return; }
+  token = entered;
   // verify by reading only — never write here, so a flaky connection can't ever overwrite live state with a blank one
   const test = await pull().catch(() => ({ error: "network error" }));
   if (test.error) { $("#gateErr").textContent = test.error === "bad token" ? "Wrong token." : test.error; return; }
+  // a real production response always has a schedule field; the public/participant view
+  // doesn't — this catches any other case where a bad token might silently succeed instead
+  // of erroring, which is what let a blank login through and quietly downgrade past sessions
+  if (!Array.isArray(test.schedule)) { $("#gateErr").textContent = "Wrong token."; return; }
   localStorage.setItem("cd_token", token);
   boot();
 }
@@ -207,7 +213,10 @@ async function saveToken() {
 async function boot() {
   try {
     state = await pull();
-    if (state.error) throw 0;
+    // a real production response always has a schedule field; the public/participant view
+    // never does — refuse to run production off a stale/downgraded token instead of silently
+    // rendering with data that's missing half its fields
+    if (state.error || !Array.isArray(state.schedule)) throw 0;
     sanitizeState(state);
   } catch { $("#gate").style.display = ""; $("#app").style.display = "none"; return; }
   $("#gate").style.display = "none";
@@ -221,7 +230,7 @@ setInterval(async () => {
   if ($("#big").classList.contains("show")) return;
   if (tab === "run") return; // don't wipe an in-progress challenge selection / winner-loser picks
   if (tab === "timer") return; // don't wipe the running timer's DOM/interval mid-count
-  try { const s = await pull(); if (!s.error) { state = sanitizeState(s); maybeAutoClosePoll(); render(); } } catch {}
+  try { const s = await pull(); if (!s.error && Array.isArray(s.schedule)) { state = sanitizeState(s); maybeAutoClosePoll(); render(); } } catch {}
 }, 8000);
 
 /* ---------- helpers ---------- */

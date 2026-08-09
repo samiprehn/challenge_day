@@ -73,8 +73,11 @@ export default {
     const state = JSON.parse((await env.STATE.get("event")) || "null") || defaultState();
 
     if (url.pathname === "/state") {
-      // a wrong token gets an error, not a silent downgrade to the public view
-      if (req.headers.get("X-Token") && !isProd) return json({ error: "bad token" }, 403);
+      // a wrong (or blank) token gets an error, not a silent downgrade to the public view —
+      // .has() checks the header was sent at all, unlike a truthy check on .get(), which
+      // treats an empty-but-present token the same as no token and used to let a blank
+      // production login through as if it were a real (but merely low-privilege) participant
+      if (req.headers.has("X-Token") && !isProd) return json({ error: "bad token" }, 403);
       if (isProd) return json(await withLiveVotes(state, env));
       return json(await publicView(state, env));
     }
